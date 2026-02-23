@@ -4,3 +4,11 @@ nav button { margin-right: 0.5rem; }
 .page-section { margin-top: 1rem; }
 label { display: block; margin-bottom: 0.5rem; }
 #output { margin-top: 1rem; padding: 0.5rem; border: 1px solid #ccc; min-height: 1.5em; }
+
+/* frame around correct answers */
+#correctSection {
+    border: 1px solid #444;
+    padding: 0.5rem;
+    border-radius: 4px;
+    background: #f9f9f9;
+}

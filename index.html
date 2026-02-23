@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Czy istnieje słowo?</title>
+    <title>Pomocnik Literakowy</title>
     <link rel="stylesheet" href="style/main.css">
 </head>
 <body>
@@ -30,7 +30,20 @@
 
     <section id="game-section" class="page-section" style="display:none;">
         <h2>Minigra</h2>
-        <p>Ta sekcja będzie zawierać minigrę - jeszcze do zaimplementowania.</p>
+        <div id="game-controls">
+            <label>Liczba liter: <input type="number" id="letterCount" min="1" max="15" value="7"></label>
+            <button id="nextBtn">Następne</button>
+            <button id="shuffleBtn">Zamieszaj litery</button>
+        </div>
+        <div id="letterDisplay" style="font-size:1.5rem; margin:0.5rem 0;"></div>
+        <p>Liczba możliwych słów: <span id="solutionCount">0</span></p>
+        <input type="text" id="guessInput" placeholder="Zgadnij słowo">
+        <div id="correctSection" style="margin-top:0.5rem;">
+            <h3>Prawidłowe hasła</h3>
+            <div id="guessList"></div>
+        </div>
+        <p id="statusTextGame">Wczytywanie listy słów...</p>
+        <button id="giveUpBtn" style="margin-top:0.5rem;">Poddaję się - pokaż wszystkie rozwiązania</button>
     </section>
 
     <script src="script/main.js" defer></script>

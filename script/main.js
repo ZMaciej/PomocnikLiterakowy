@@ -2,12 +2,24 @@ const input = document.getElementById('inputText');
 const output = document.getElementById('output');
 const statusEl = document.getElementById('statusText');
 
+function updateStatus(msg) {
+    if (statusEl) statusEl.textContent = msg;
+    const alt = document.getElementById('statusTextGame');
+    if (alt) alt.textContent = msg;
+}
+
 
 // --- routing support for SPA ------------------------------------------------
 
 function showSection(name) {
     const sections = document.querySelectorAll('.page-section');
     sections.forEach(s => s.style.display = s.id === name + '-section' ? '' : 'none');
+    if (name === 'game') {
+        // only initialize game once; subsequent navigations keep current state
+        if (!gameState.letters) {
+            startGame();
+        }
+    }
 }
 
 function navigateTo(name) {
@@ -57,12 +69,22 @@ function openDB() {
 async function loadWordSet() {
     console.log('loadWordSet starting');
 
+    function buildLengthKeys(map) {
+        const lengthKeys = {};
+        for (const key of Object.keys(map)) {
+            const len = key.length;
+            if (!lengthKeys[len]) lengthKeys[len] = [];
+            lengthKeys[len].push(key);
+        }
+        return lengthKeys;
+    }
+
     // kolejne odwiedziny w jednej sesji: najpierw sprawdzamy sessionStorage
-    // w którym zapisujemy wyłącznie strukturę map. Przy odczycie tworzymy
-    // dodatkowo Set, bo JSON nie obsługuje typów specjalnych.
+    // w którym zapisujemy wyłącznie strukturę map oraz indeks długości. Przy
+    // odczycie tworzymy dodatkowo Set, bo JSON nie obsługuje typów specjalnych.
     const cached = sessionStorage.getItem('wordData');
     if (cached) {
-        statusEl.textContent = 'Lista słów pobrana z pamięci sesyjnej.';
+        updateStatus('Lista słów pobrana z pamięci sesyjnej.');
         try {
             const obj = JSON.parse(cached);
             // sprawdz czy map istnieje
@@ -73,6 +95,8 @@ async function loadWordSet() {
                 for (const w of arr) set.add(w);
             }
             obj.set = set;
+            // odbuduj indeks długości jeśli brak
+            if (!obj.lengthKeys) obj.lengthKeys = buildLengthKeys(obj.map);
             return obj;
         } catch (e) {
             sessionStorage.removeItem('wordData');
@@ -89,24 +113,26 @@ async function loadWordSet() {
     });
 
     if (data) {
-        statusEl.textContent = 'Lista słów wczytana z pamięci podręcznej.';
-        // zapisz minimalną strukturę (map) w sessionStorage
+        updateStatus('Lista słów wczytana z pamięci podręcznej.');
+        // ensure length index available
+        if (!data.lengthKeys) data.lengthKeys = buildLengthKeys(data.map);
+        // zapisz minimalną strukturę (map + lengthKeys) w sessionStorage
         try {
-            const copy = { map: data.map };
+            const copy = { map: data.map, lengthKeys: data.lengthKeys };
             sessionStorage.setItem('wordData', JSON.stringify(copy));
         } catch {}
         return data;
     }
 
     // fetch text file from same directory; make sure slowa.txt is available
-    statusEl.textContent = 'Pobieranie listy słów...';
+    updateStatus('Pobieranie listy słów...');
     const progressElem = document.getElementById('progress');
     progressElem.style.display = 'block';
     progressElem.value = 0;
 
     const resp = await fetch('slowa.txt');
     if (!resp.ok) {
-        statusEl.textContent = 'Nie udało się wczytać listy słów.';
+        updateStatus('Nie udało się wczytać listy słów.');
         progressElem.style.display = 'none';
         throw new Error('Unable to fetch word list');
     }
@@ -123,7 +149,7 @@ async function loadWordSet() {
         if (contentLength) {
             const percent = Math.floor((received / contentLength) * 100);
             progressElem.value = percent;
-            statusEl.textContent = `Pobieranie listy słów... (${percent}%)`;
+            updateStatus(`Pobieranie listy słów... (${percent}%)`);
         }
     }
     progressElem.style.display = 'none';
@@ -159,10 +185,23 @@ async function loadWordSet() {
         map[key].push(w);
     }
 
+    // build length index to speed up game selection
+    function buildLengthKeys(map) {
+        const lengthKeys = {};
+        for (const key of Object.keys(map)) {
+            const len = key.length;
+            if (!lengthKeys[len]) lengthKeys[len] = [];
+            lengthKeys[len].push(key);
+        }
+        return lengthKeys;
+    }
+
+    const lengthKeys = buildLengthKeys(map);
+
     const tx2 = db.transaction('words', 'readwrite');
-    tx2.objectStore('words').put({set, map}, 'data');
-    statusEl.textContent = 'Lista słów pobrana i zapisana w pamięci podręcznej.';
-    return {set, map};
+    tx2.objectStore('words').put({set, map, lengthKeys}, 'data');
+    updateStatus('Lista słów pobrana i zapisana w pamięci podręcznej.');
+    return {set, map, lengthKeys};
 }
 
 let cachedSetPromise = null;
@@ -183,7 +222,7 @@ async function init() {
         await getWordSet();
     } catch (err) {
         console.error(err);
-        statusEl.textContent = 'Błąd przy wczytywaniu listy słów.';
+        updateStatus('Błąd przy wczytywaniu listy słów.');
     }
 }
 
@@ -198,15 +237,15 @@ if (document.readyState === 'loading') {
 const clearBtn = document.getElementById('clearCacheBtn');
 if (clearBtn) {
     clearBtn.addEventListener('click', async () => {
-        statusEl.textContent = 'Czyszczenie pamięci podręcznej...';        // remove sessionStorage data
+        updateStatus('Czyszczenie pamięci podręcznej...');        // remove sessionStorage data
         sessionStorage.removeItem('wordData');        // delete indexeddb database
         const deleteReq = indexedDB.deleteDatabase('LiterakowyDB');
         deleteReq.onsuccess = () => {
-            statusEl.textContent = 'Pamięć podręczna wyczyszczona.';
+            updateStatus('Pamięć podręczna wyczyszczona.');
             cachedSetPromise = null;
         };
         deleteReq.onerror = () => {
-            statusEl.textContent = 'Nie udało się wyczyścić pamięci podręcznej.';
+            updateStatus('Nie udało się wyczyścić pamięci podręcznej.');
         };
     });
 }
@@ -314,3 +353,144 @@ input.addEventListener('input', async () => {
         output.textContent = 'Wystąpił błąd podczas sprawdzania słów. (Coś się odjebało)';
     }
 });
+
+// --- game logic ------------------------------------------------------------
+
+let gameState = {
+    letters: '',
+    solutions: [],
+    found: new Set(),
+    count: 7
+};
+
+function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+async function startGame() {
+    // ensure words are loaded first
+    try {
+        const wordData = await getWordSet();
+        const count = parseInt(document.getElementById('letterCount').value, 10) || 7;
+        await newGame(wordData, count);
+    } catch (e) {
+        console.error('Cannot start game', e);
+    }
+}
+
+async function newGame(wordData, count) {
+    gameState.count = count;
+    // choose random key of correct length using precomputed index
+    const keys = (wordData.lengthKeys && wordData.lengthKeys[count]) ? wordData.lengthKeys[count] :
+                 Object.keys(wordData.map).filter(k => k.length === count);
+    if (!keys || keys.length === 0) {
+        document.getElementById('letterDisplay').textContent = 'Brak słów o takiej długości';
+        document.getElementById('solutionCount').textContent = '0';
+        gameState.letters = '';
+        gameState.solutions = [];
+        gameState.found.clear();
+        return;
+    }
+    const key = keys[Math.floor(Math.random() * keys.length)];
+    const letters = shuffleArray(key.split('')).join('');
+    const solutions = Array.from(new Set(wordData.map[key] || [])).sort();
+    gameState.letters = letters;
+    gameState.solutions = solutions;
+    gameState.found.clear();
+    updateGameUI();
+}
+
+function updateGameUI() {
+    document.getElementById('letterDisplay').textContent = gameState.letters.split('').join(' ');
+    document.getElementById('solutionCount').textContent = gameState.solutions.length;
+    const guessList = document.getElementById('guessList');
+    guessList.innerHTML = '';
+    const guessInput = document.getElementById('guessInput');
+    guessInput.value = '';
+    guessInput.style.backgroundColor = '';
+}
+
+function handleGuess(guess) {
+    const normalized = guess.trim().toLowerCase();
+    if (!normalized) return;
+    const guessInput = document.getElementById('guessInput');
+    if (gameState.solutions.includes(normalized) && !gameState.found.has(normalized)) {
+        gameState.found.add(normalized);
+        const a = document.createElement('a');
+        a.textContent = normalized;
+        a.href = `https://sjp.pl/${encodeURIComponent(normalized)}`;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        const div = document.createElement('div');
+        div.appendChild(a);
+        document.getElementById('guessList').appendChild(div);
+        guessInput.style.backgroundColor = 'lightgreen';
+        // keep the input text so player can continue editing
+    } else {
+        guessInput.style.backgroundColor = '';
+    }
+}
+
+// hook up game controls once DOM ready
+function setupGameControls() {
+    const guessInput = document.getElementById('guessInput');
+    if (guessInput) {
+        // check after every keystroke
+        guessInput.addEventListener('input', () => {
+            handleGuess(guessInput.value);
+        });
+    }
+    const giveUp = document.getElementById('giveUpBtn');
+    if (giveUp) {
+        giveUp.addEventListener('click', () => {
+            const list = document.getElementById('guessList');
+            list.innerHTML = '';
+            gameState.solutions.forEach(w => {
+                const a = document.createElement('a');
+                a.textContent = w;
+                a.href = `https://sjp.pl/${encodeURIComponent(w)}`;
+                a.target = '_blank';
+                a.rel = 'noopener';
+                const div = document.createElement('div');
+                div.appendChild(a);
+                list.appendChild(div);
+            });
+        });
+    }
+    const nextBtn = document.getElementById('nextBtn');
+    if (nextBtn) {
+        nextBtn.addEventListener('click', async () => {
+            const count = parseInt(document.getElementById('letterCount').value, 10) || 7;
+            try {
+                const wordData = await getWordSet();
+                await newGame(wordData, count);
+            } catch (e) {
+                console.error('Cannot generate next game', e);
+            }
+        });
+    }
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    if (shuffleBtn) {
+        shuffleBtn.addEventListener('click', () => {
+            // reshuffle current letters order without clearing user's guess
+            if (gameState.letters) {
+                gameState.letters = shuffleArray(gameState.letters.split('')).join('');
+                // only update the display of letters
+                document.getElementById('letterDisplay').textContent = gameState.letters.split('').join(' ');
+            }
+        });
+    }
+}
+
+// ensure game controls initialized during global init
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupGameControls);
+} else {
+    setupGameControls();
+}
+
+// --- end game logic --------------------------------------------------------
