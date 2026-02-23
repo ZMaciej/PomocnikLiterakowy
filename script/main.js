@@ -11,17 +11,19 @@ function showSection(name) {
 }
 
 function navigateTo(name) {
+    // redirect any "home" requests to the check page as it's now the landing screen
+    if (name === 'home') name = 'check';
     location.hash = name;
     showSection(name);
 }
 
 function handleHashChange() {
     const hash = location.hash.replace(/^#/, '');
-    if (!hash) return navigateTo('home');
-    if (['home','check','game'].includes(hash)) {
+    if (!hash) return navigateTo('check');
+    if (['check','game'].includes(hash)) {
         showSection(hash);
     } else {
-        navigateTo('home');
+        navigateTo('check');
     }
 }
 
@@ -29,26 +31,13 @@ window.addEventListener('hashchange', handleHashChange);
 
 // wire nav buttons once DOM ready
 function setupNavigation() {
-    document.getElementById('btn-home').addEventListener('click', () => navigateTo('home'));
-    document.getElementById('btn-check').addEventListener('click', () => navigateTo('check'));
+    // "home" button now acts as the check page link
+    document.getElementById('btn-home').addEventListener('click', () => navigateTo('check'));
     document.getElementById('btn-game').addEventListener('click', () => navigateTo('game'));
 }
 
 // --- end routing support -----------------------------------------------------
 
-// simple permutation generator (returns array of strings)
-function permute(str) {
-    if (str.length <= 1) return [str];
-    const results = new Set();
-    for (let i = 0; i < str.length; i++) {
-        const first = str[i];
-        const rest = str.slice(0, i) + str.slice(i + 1);
-        for (const perm of permute(rest)) {
-            results.add(first + perm);
-        }
-    }
-    return Array.from(results);
-}
 
 // IndexedDB helpers
 function openDB() {
@@ -68,16 +57,24 @@ function openDB() {
 async function loadWordSet() {
     console.log('loadWordSet starting');
 
-    // kolejne odwiedziny w jednej sesji: najpierw sprawdzamy sessionStorage,
-    // w którym zachowujemy obiekt zwrócony przez IndexedDB. To jest szybkie
-    // (synchronczne) i eliminuje nawet otwieranie bazy.
+    // kolejne odwiedziny w jednej sesji: najpierw sprawdzamy sessionStorage
+    // w którym zapisujemy wyłącznie strukturę map. Przy odczycie tworzymy
+    // dodatkowo Set, bo JSON nie obsługuje typów specjalnych.
     const cached = sessionStorage.getItem('wordData');
     if (cached) {
         statusEl.textContent = 'Lista słów pobrana z pamięci sesyjnej.';
         try {
-            return JSON.parse(cached);
+            const obj = JSON.parse(cached);
+            // sprawdz czy map istnieje
+            if (!obj.map) throw new Error('Invalid cached data: missing map');
+            // rekonstrukcja "set" z map
+            const set = new Set();
+            for (const arr of Object.values(obj.map || {})) {
+                for (const w of arr) set.add(w);
+            }
+            obj.set = set;
+            return obj;
         } catch (e) {
-            // parser mógł się nie udać przy dużych danych – w razie czego wyczyść
             sessionStorage.removeItem('wordData');
         }
     }
@@ -93,10 +90,10 @@ async function loadWordSet() {
 
     if (data) {
         statusEl.textContent = 'Lista słów wczytana z pamięci podręcznej.';
-        // zapisz do sessionStorage żeby kolejne ładowanie w ramach tej samej
-        // karty było natychmiastowe
+        // zapisz minimalną strukturę (map) w sessionStorage
         try {
-            sessionStorage.setItem('wordData', JSON.stringify(data));
+            const copy = { map: data.map };
+            sessionStorage.setItem('wordData', JSON.stringify(copy));
         } catch {}
         return data;
     }
@@ -152,20 +149,20 @@ async function loadWordSet() {
     const words = text.split(/\r?\n/).filter(Boolean);
     console.log('loaded', words.length, 'words');
     
-    // organize words by length for faster lookup with long inputs
-    const byLength = {};
+    // build a dictionary mapping sorted letter sequences to word lists
+    const map = {};
     const set = new Set();
     for (const w of words) {
         set.add(w);
-        if (!byLength[w.length]) byLength[w.length] = [];
-        byLength[w.length].push(w);
+        const key = w.split('').sort().join('');
+        if (!map[key]) map[key] = [];
+        map[key].push(w);
     }
 
-    // store both set and length index in IndexedDB
     const tx2 = db.transaction('words', 'readwrite');
-    tx2.objectStore('words').put({set, byLength}, 'data');
+    tx2.objectStore('words').put({set, map}, 'data');
     statusEl.textContent = 'Lista słów pobrana i zapisana w pamięci podręcznej.';
-    return {set, byLength};
+    return {set, map};
 }
 
 let cachedSetPromise = null;
@@ -201,8 +198,8 @@ if (document.readyState === 'loading') {
 const clearBtn = document.getElementById('clearCacheBtn');
 if (clearBtn) {
     clearBtn.addEventListener('click', async () => {
-        statusEl.textContent = 'Czyszczenie pamięci podręcznej...';
-        // delete indexeddb database
+        statusEl.textContent = 'Czyszczenie pamięci podręcznej...';        // remove sessionStorage data
+        sessionStorage.removeItem('wordData');        // delete indexeddb database
         const deleteReq = indexedDB.deleteDatabase('LiterakowyDB');
         deleteReq.onsuccess = () => {
             statusEl.textContent = 'Pamięć podręczna wyczyszczona.';
@@ -214,141 +211,48 @@ if (clearBtn) {
     });
 }
 
-// search progress & cancellation
-let currentSearchVersion = 0;
-const searchProgress = document.getElementById('searchProgress');
 
-function factorial(n) {
-    let r = 1;
-    for (let i = 2; i <= n; i++) r *= i;
-    return r;
-}
+
 
 // Polish characters for wildcard expansion
 const POLISH_CHARS = ['a', 'ą', 'b', 'c', 'ć', 'd', 'e', 'ę', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'ł', 'm', 'n', 'ń', 'o', 'ó', 'p', 'r', 's', 'ś', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'ź', 'ż'];
 
-function estimateTotal(letters) {
-    // account for duplicate letters in regular chars
-    const wildcardCount = (letters.match(/\?/g) || []).length;
-    const regularChars = letters.replace(/\?/g, '');
-    
-    const counts = {};
-    for (const c of regularChars) counts[c] = (counts[c] || 0) + 1;
-    let total = factorial(regularChars.length);
-    for (const k in counts) {
-        total /= factorial(counts[k]);
-    }
-    
-    // Multiply by 32^wildcardCount for each possible replacement of ?
-    total *= Math.pow(32, wildcardCount);
-    
-    return total;
-}
-
-// check if word can be formed from available letters (with wildcard support)
-function canFormWord(word, letters) {
-    const wildcardCount = (letters.match(/\?/g) || []).length;
-    const regularChars = letters.replace(/\?/g, '');
-    
-    const need = {};
-    for (const c of word) need[c] = (need[c] || 0) + 1;
-
-    const available = {};
-    for (const c of regularChars) available[c] = (available[c] || 0) + 1;
-
-    let usedWildcards = 0;
-    for (const c in need) {
-        const have = available[c] || 0;
-        if (have < need[c]) {
-            usedWildcards += need[c] - have;
-        }
-    }
-    
-    return usedWildcards <= wildcardCount;
-}
-
-// generator for all combinations of ? replacements
-function* generateWildcardCombinations(str) {
+// return a set of sorted-letter keys after replacing ? with all polish chars
+function getWildcardKeys(str) {
     const indices = [];
     for (let i = 0; i < str.length; i++) {
         if (str[i] === '?') indices.push(i);
     }
-    
-    if (indices.length === 0) {
-        yield str;
-        return;
-    }
-    
-    const numCombinations = Math.pow(32, indices.length);
-    for (let combo = 0; combo < numCombinations; combo++) {
-        const result = str.split('');
-        let temp = combo;
-        for (let i = indices.length - 1; i >= 0; i--) {
-            result[indices[i]] = POLISH_CHARS[temp % 32];
-            temp = Math.floor(temp / 32);
-        }
-        yield result.join('');
-    }
-}
-
-// generator yielding unique permutations with wildcard support
-function* permuteGeneratorWithWildcards(str) {
-    if (!str.includes('?')) {
-        yield* permuteGenerator(str);
-        return;
-    }
-    
-    for (const perm of permuteGenerator(str)) {
-        yield* generateWildcardCombinations(perm);
-    }
-}
-
-// generator yielding unique permutations
-function* permuteGenerator(str) {
-    if (str.length <= 1) {
-        yield str;
-        return;
-    }
-    const seen = new Set();
-    for (let i = 0; i < str.length; i++) {
-        const ch = str[i];
-        if (seen.has(ch)) continue;
-        seen.add(ch);
-        const rest = str.slice(0, i) + str.slice(i+1);
-        for (const perm of permuteGenerator(rest)) {
-            yield ch + perm;
-        }
-    }
-}
-
-async function performSearch(letters, wordData, version) {
-    const total = estimateTotal(letters);
-    let checked = 0;
     const results = new Set();
+    const arr = str.split('');
 
-    searchProgress.style.display = 'block';
-    searchProgress.value = 0;
-
-    for (const p of permuteGeneratorWithWildcards(letters)) {
-        if (version !== currentSearchVersion) {
-            // canceled
-            searchProgress.style.display = 'none';
-            return null;
+    function helper(pos) {
+        if (pos === indices.length) {
+            const key = arr.slice().sort().join('');
+            results.add(key);
+            return;
         }
-        checked++;
-        if (wordData.set.has(p)) results.add(p);
-
-        if (checked % 1000 === 0) {
-            const percent = Math.min(100, Math.floor((checked / total) * 100));
-            searchProgress.value = percent;
-            // yield to UI
-            await new Promise(r => setTimeout(r, 0));
+        const idx = indices[pos];
+        for (const ch of POLISH_CHARS) {
+            arr[idx] = ch;
+            helper(pos + 1);
         }
+        arr[idx] = '?';
     }
 
-    searchProgress.style.display = 'none';
+    if (indices.length === 0) {
+        // nothing to expand
+        results.add(str.split('').sort().join(''));
+    } else {
+        helper(0);
+    }
     return results;
 }
+
+
+
+
+
 
 // Polish plural declension
 function pluralForm(count) {
@@ -361,40 +265,9 @@ function pluralForm(count) {
     return 'słowa';
 }
 
-async function performSearchLong(letters, wordData, version) {
-    const len = letters.length;
-    searchProgress.style.display = 'block';
-    searchProgress.value = 0;
-
-    const candidates = wordData.byLength[len] || [];
-    let checked = 0;
-    const results = new Set();
-
-    for (const word of candidates) {
-        if (version !== currentSearchVersion) {
-            searchProgress.style.display = 'none';
-            return null;
-        }
-        checked++;
-        if (canFormWord(word, letters)) {
-            results.add(word);
-        }
-
-        if (checked % 100 === 0) {
-            const percent = Math.min(100, Math.floor((checked / candidates.length) * 100));
-            searchProgress.value = percent;
-            await new Promise(r => setTimeout(r, 0));
-        }
-    }
-
-    searchProgress.style.display = 'none';
-    return results;
-}
 
 input.addEventListener('input', async () => {
     const letters = input.value.trim().toLowerCase();
-    currentSearchVersion++;
-    const version = currentSearchVersion;
 
     if (!letters) {
         output.textContent = '';
@@ -412,12 +285,21 @@ input.addEventListener('input', async () => {
         const wordData = await getWordSet();
         let matchesSet;
 
-        if (letters.length > 8) {
-            // for long inputs, check only words of same length
-            matchesSet = await performSearchLong(letters, wordData, version);
+        if (wildcardCount === 0) {
+            // simple lookup by sorted letters
+            const key = letters.split('').sort().join('');
+            const arr = wordData.map[key] || [];
+            matchesSet = new Set(arr);
         } else {
-            // for short inputs, use permutation approach
-            matchesSet = await performSearch(letters, wordData, version);
+            // expand blanks into all letter possibilities and lookup each key
+            const keys = getWildcardKeys(letters);
+            matchesSet = new Set();
+            for (const key of keys) {
+                const arr = wordData.map[key];
+                if (arr && arr.length) {
+                    for (const w of arr) matchesSet.add(w);
+                }
+            }
         }
 
         if (matchesSet === null) return; // search aborted

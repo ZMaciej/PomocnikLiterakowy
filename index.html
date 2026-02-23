@@ -4,30 +4,27 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pomocnik Literakowy</title>
+    <title>Czy istnieje słowo?</title>
     <link rel="stylesheet" href="style/main.css">
 </head>
 <body>
     <h1>Pomocnik Literakowy</h1>
 
     <nav>
-        <button id="btn-home">Strona główna</button>
-        <button id="btn-check">Czy istnieje słowo?</button>
+        <button id="btn-home">Czy istnieje słowo?</button>
         <button id="btn-game">Minigra - ułóż słowo</button>
     </nav>
 
     <!-- sekcje ukrywane/pokazywane przez JS -->
-    <section id="home-section" class="page-section">
-        <p>Wybierz jedną z opcji wyżej.</p>
-    </section>
+    <!-- home-section removed because the check screen is now the landing page -->
 
     <section id="check-section" class="page-section" style="display:none;">
         <!-- treść z poprzedniej czy-istnieje-slowo.html -->
         <small style="display:block; margin-bottom:0.5rem;">Hint: blanki reprezentowane są poprzez znak zapytania "?".</small>
         <input type="text" id="inputText" placeholder="Wprowadź litery...">
         <div id="output"></div>
-        <progress id="searchProgress" max="100" value="0" style="width:100%; display:none;margin-top:0.5rem;"></progress>
         <p id="statusText">Wczytywanie listy słów...</p>
+        <button id="clearCacheBtn">Wyczyść pamięć podręczną</button>
         <progress id="progress" max="100" value="0" style="width:100%; display:none;"></progress>
     </section>
 
