@@ -12,3 +12,40 @@ label { display: block; margin-bottom: 0.5rem; }
     border-radius: 4px;
     background: #f9f9f9;
 }
+
+/* loading overlay */
+#loadingOverlay {
+    font-size: 1.1rem;
+}
+
+#loadingOverlay h2 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+#loadingProgress {
+    height: 24px;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+}
+
+/* Chrome/Safari progress bar */
+#loadingProgress::-webkit-progress-bar {
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+#loadingProgress::-webkit-progress-value {
+    background: linear-gradient(90deg, #4CAF50, #45a049);
+    border-radius: 4px;
+}
+
+/* Firefox progress bar */
+#loadingProgress::-moz-progress-bar {
+    background: linear-gradient(90deg, #4CAF50, #45a049);
+    border-radius: 4px;
+}

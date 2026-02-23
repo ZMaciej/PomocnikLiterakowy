@@ -6,6 +6,23 @@ function updateStatus(msg) {
     if (statusEl) statusEl.textContent = msg;
     const alt = document.getElementById('statusTextGame');
     if (alt) alt.textContent = msg;
+    // also update loading screen status if visible
+    const loading = document.getElementById('loadingStatus');
+    if (loading) loading.textContent = msg;
+}
+
+function hideLoadingScreen() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+function updateLoadingProgress(percent) {
+    const prog = document.getElementById('loadingProgress');
+    const pageProgress = document.getElementById('progress');
+    if (prog) prog.value = percent;
+    if (pageProgress) pageProgress.value = percent;
 }
 
 
@@ -17,7 +34,8 @@ function showSection(name) {
     if (name === 'game') {
         // only initialize game once; subsequent navigations keep current state
         if (!gameState.letters) {
-            startGame();
+            // start game loading in background (don't block section display)
+            startGame().catch(err => console.error('Game initialization failed:', err));
         }
     }
 }
@@ -51,21 +69,6 @@ function setupNavigation() {
 // --- end routing support -----------------------------------------------------
 
 
-// IndexedDB helpers
-function openDB() {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open('LiterakowyDB', 1);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains('words')) {
-                db.createObjectStore('words');
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
-
 async function loadWordSet() {
     console.log('loadWordSet starting');
 
@@ -79,61 +82,13 @@ async function loadWordSet() {
         return lengthKeys;
     }
 
-    // kolejne odwiedziny w jednej sesji: najpierw sprawdzamy sessionStorage
-    // w którym zapisujemy wyłącznie strukturę map oraz indeks długości. Przy
-    // odczycie tworzymy dodatkowo Set, bo JSON nie obsługuje typów specjalnych.
-    const cached = sessionStorage.getItem('wordData');
-    if (cached) {
-        updateStatus('Lista słów pobrana z pamięci sesyjnej.');
-        try {
-            const obj = JSON.parse(cached);
-            // sprawdz czy map istnieje
-            if (!obj.map) throw new Error('Invalid cached data: missing map');
-            // rekonstrukcja "set" z map
-            const set = new Set();
-            for (const arr of Object.values(obj.map || {})) {
-                for (const w of arr) set.add(w);
-            }
-            obj.set = set;
-            // odbuduj indeks długości jeśli brak
-            if (!obj.lengthKeys) obj.lengthKeys = buildLengthKeys(obj.map);
-            return obj;
-        } catch (e) {
-            sessionStorage.removeItem('wordData');
-        }
-    }
-
-    const db = await openDB();
-    const tx = db.transaction('words', 'readonly');
-    const store = tx.objectStore('words');
-    const data = await new Promise((res, rej) => {
-        const r = store.get('data');
-        r.onsuccess = () => res(r.result);
-        r.onerror = () => rej(r.error);
-    });
-
-    if (data) {
-        updateStatus('Lista słów wczytana z pamięci podręcznej.');
-        // ensure length index available
-        if (!data.lengthKeys) data.lengthKeys = buildLengthKeys(data.map);
-        // zapisz minimalną strukturę (map + lengthKeys) w sessionStorage
-        try {
-            const copy = { map: data.map, lengthKeys: data.lengthKeys };
-            sessionStorage.setItem('wordData', JSON.stringify(copy));
-        } catch {}
-        return data;
-    }
-
     // fetch text file from same directory; make sure slowa.txt is available
     updateStatus('Pobieranie listy słów...');
-    const progressElem = document.getElementById('progress');
-    progressElem.style.display = 'block';
-    progressElem.value = 0;
+    updateLoadingProgress(0);
 
     const resp = await fetch('slowa.txt');
     if (!resp.ok) {
         updateStatus('Nie udało się wczytać listy słów.');
-        progressElem.style.display = 'none';
         throw new Error('Unable to fetch word list');
     }
 
@@ -148,11 +103,10 @@ async function loadWordSet() {
         received += value.length;
         if (contentLength) {
             const percent = Math.floor((received / contentLength) * 100);
-            progressElem.value = percent;
+            updateLoadingProgress(percent);
             updateStatus(`Pobieranie listy słów... (${percent}%)`);
         }
     }
-    progressElem.style.display = 'none';
 
     const decoder = new TextDecoder();
     // combine chunks into single Uint8Array
@@ -175,6 +129,10 @@ async function loadWordSet() {
     const words = text.split(/\r?\n/).filter(Boolean);
     console.log('loaded', words.length, 'words');
     
+    updateStatus('Przetwarzanie słownika...');
+    updateLoadingProgress(50);
+    await new Promise(r => setTimeout(r, 300));
+    
     // build a dictionary mapping sorted letter sequences to word lists
     const map = {};
     const set = new Set();
@@ -185,6 +143,10 @@ async function loadWordSet() {
         map[key].push(w);
     }
 
+    updateStatus('Optymalizowanie wyszukiwania...');
+    updateLoadingProgress(75);
+    await new Promise(r => setTimeout(r, 300));
+    
     // build length index to speed up game selection
     function buildLengthKeys(map) {
         const lengthKeys = {};
@@ -198,9 +160,6 @@ async function loadWordSet() {
 
     const lengthKeys = buildLengthKeys(map);
 
-    const tx2 = db.transaction('words', 'readwrite');
-    tx2.objectStore('words').put({set, map, lengthKeys}, 'data');
-    updateStatus('Lista słów pobrana i zapisana w pamięci podręcznej.');
     return {set, map, lengthKeys};
 }
 
@@ -216,13 +175,25 @@ function getWordSet() {
 async function init() {
     // prepare SPA navigation
     setupNavigation();
-    handleHashChange();
-
+    
     try {
+        updateStatus('Sprawdzanie pamięci podręcznej...');
+        updateLoadingProgress(10);
+        
         await getWordSet();
+        updateLoadingProgress(100);
+        
+        // Show completion message briefly before hiding
+        await new Promise(r => setTimeout(r, 300));
+        hideLoadingScreen();
+        // Initialize route AFTER hiding overlay
+        handleHashChange();
     } catch (err) {
         console.error(err);
         updateStatus('Błąd przy wczytywaniu listy słów.');
+        await new Promise(r => setTimeout(r, 800));
+        hideLoadingScreen();
+        handleHashChange();
     }
 }
 
@@ -232,25 +203,6 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
-
-// clear cached data handler
-const clearBtn = document.getElementById('clearCacheBtn');
-if (clearBtn) {
-    clearBtn.addEventListener('click', async () => {
-        updateStatus('Czyszczenie pamięci podręcznej...');        // remove sessionStorage data
-        sessionStorage.removeItem('wordData');        // delete indexeddb database
-        const deleteReq = indexedDB.deleteDatabase('LiterakowyDB');
-        deleteReq.onsuccess = () => {
-            updateStatus('Pamięć podręczna wyczyszczona.');
-            cachedSetPromise = null;
-        };
-        deleteReq.onerror = () => {
-            updateStatus('Nie udało się wyczyścić pamięci podręcznej.');
-        };
-    });
-}
-
-
 
 
 // Polish characters for wildcard expansion
