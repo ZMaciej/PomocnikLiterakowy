@@ -1,3 +1,6 @@
 body { font-family: Arial, sans-serif; margin: 2rem; }
+nav { margin-bottom: 1.5rem; }
+nav button { margin-right: 0.5rem; }
+.page-section { margin-top: 1rem; }
 label { display: block; margin-bottom: 0.5rem; }
 #output { margin-top: 1rem; padding: 0.5rem; border: 1px solid #ccc; min-height: 1.5em; }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pl">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -9,15 +9,33 @@
 </head>
 <body>
     <h1>Pomocnik Literakowy</h1>
-    <!-- <label for="inputText">Dostępne literki:</label> -->
-    <small style="display:block; margin-bottom:0.5rem;">Hint: blanki reprezentowane są poprzez znak zapytania "?".</small>
-    <input type="text" id="inputText" placeholder="Wprowadź litery...">
-    <div id="output"></div>
-    <progress id="searchProgress" max="100" value="0" style="width:100%; display:none;margin-top:0.5rem;"></progress>
 
-    <p id="statusText">Wczytywanie listy słów...</p>
-    <!-- <button id="clearCacheBtn">Wyczyść pamięć podręczną</button> -->
-    <progress id="progress" max="100" value="0" style="width:100%; display:none;"></progress>
-    <script src="script/main.js"></script>
+    <nav>
+        <button id="btn-home">Strona główna</button>
+        <button id="btn-check">Czy istnieje słowo?</button>
+        <button id="btn-game">Minigra - ułóż słowo</button>
+    </nav>
+
+    <!-- sekcje ukrywane/pokazywane przez JS -->
+    <section id="home-section" class="page-section">
+        <p>Wybierz jedną z opcji wyżej.</p>
+    </section>
+
+    <section id="check-section" class="page-section" style="display:none;">
+        <!-- treść z poprzedniej czy-istnieje-slowo.html -->
+        <small style="display:block; margin-bottom:0.5rem;">Hint: blanki reprezentowane są poprzez znak zapytania "?".</small>
+        <input type="text" id="inputText" placeholder="Wprowadź litery...">
+        <div id="output"></div>
+        <progress id="searchProgress" max="100" value="0" style="width:100%; display:none;margin-top:0.5rem;"></progress>
+        <p id="statusText">Wczytywanie listy słów...</p>
+        <progress id="progress" max="100" value="0" style="width:100%; display:none;"></progress>
+    </section>
+
+    <section id="game-section" class="page-section" style="display:none;">
+        <h2>Minigra</h2>
+        <p>Ta sekcja będzie zawierać minigrę - jeszcze do zaimplementowania.</p>
+    </section>
+
+    <script src="script/main.js" defer></script>
 </body>
 </html>

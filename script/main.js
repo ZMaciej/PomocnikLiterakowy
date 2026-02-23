@@ -2,6 +2,40 @@ const input = document.getElementById('inputText');
 const output = document.getElementById('output');
 const statusEl = document.getElementById('statusText');
 
+
+// --- routing support for SPA ------------------------------------------------
+
+function showSection(name) {
+    const sections = document.querySelectorAll('.page-section');
+    sections.forEach(s => s.style.display = s.id === name + '-section' ? '' : 'none');
+}
+
+function navigateTo(name) {
+    location.hash = name;
+    showSection(name);
+}
+
+function handleHashChange() {
+    const hash = location.hash.replace(/^#/, '');
+    if (!hash) return navigateTo('home');
+    if (['home','check','game'].includes(hash)) {
+        showSection(hash);
+    } else {
+        navigateTo('home');
+    }
+}
+
+window.addEventListener('hashchange', handleHashChange);
+
+// wire nav buttons once DOM ready
+function setupNavigation() {
+    document.getElementById('btn-home').addEventListener('click', () => navigateTo('home'));
+    document.getElementById('btn-check').addEventListener('click', () => navigateTo('check'));
+    document.getElementById('btn-game').addEventListener('click', () => navigateTo('game'));
+}
+
+// --- end routing support -----------------------------------------------------
+
 // simple permutation generator (returns array of strings)
 function permute(str) {
     if (str.length <= 1) return [str];
@@ -33,6 +67,21 @@ function openDB() {
 
 async function loadWordSet() {
     console.log('loadWordSet starting');
+
+    // kolejne odwiedziny w jednej sesji: najpierw sprawdzamy sessionStorage,
+    // w którym zachowujemy obiekt zwrócony przez IndexedDB. To jest szybkie
+    // (synchronczne) i eliminuje nawet otwieranie bazy.
+    const cached = sessionStorage.getItem('wordData');
+    if (cached) {
+        statusEl.textContent = 'Lista słów pobrana z pamięci sesyjnej.';
+        try {
+            return JSON.parse(cached);
+        } catch (e) {
+            // parser mógł się nie udać przy dużych danych – w razie czego wyczyść
+            sessionStorage.removeItem('wordData');
+        }
+    }
+
     const db = await openDB();
     const tx = db.transaction('words', 'readonly');
     const store = tx.objectStore('words');
@@ -44,6 +93,11 @@ async function loadWordSet() {
 
     if (data) {
         statusEl.textContent = 'Lista słów wczytana z pamięci podręcznej.';
+        // zapisz do sessionStorage żeby kolejne ładowanie w ramach tej samej
+        // karty było natychmiastowe
+        try {
+            sessionStorage.setItem('wordData', JSON.stringify(data));
+        } catch {}
         return data;
     }
 
@@ -124,6 +178,10 @@ function getWordSet() {
 
 // preload word set immediately on page load so status updates are independent
 async function init() {
+    // prepare SPA navigation
+    setupNavigation();
+    handleHashChange();
+
     try {
         await getWordSet();
     } catch (err) {
