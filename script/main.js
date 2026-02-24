@@ -1,3 +1,44 @@
+// ---- mock helpers -------------------------------------------------------
+// a tiny fake dictionary that can be swapped in during UI work.  the
+// real loader is expensive so appending "?mock" to the URL or calling
+// `setMockMode(true)` from the console makes the rest of the code behave
+// normally while avoiding any network i/o.
+
+let useMockData = location.search.includes('mock');
+
+function createMockWordData() {
+    const words = ['ma', 'ala', 'kot', 'tam', 'kota', 'flopy', 'skisła', 'śreżoga', 'pokwitli', 'kołkująca', 'nieuleczań', 'designerowi', 'redesignowi', 'serpentynami', 'nieprzepysznych'];
+    const map = {};
+    const set = new Set(words);
+    for (const w of words) {
+        const key = w.split('').sort().join('');
+        if (!map[key]) map[key] = [];
+        map[key].push(w);
+    }
+    const lengthKeys = {};
+    for (const k of Object.keys(map)) {
+        const len = k.length;
+        lengthKeys[len] = lengthKeys[len] || [];
+        lengthKeys[len].push(k);
+    }
+    return { set, map, lengthKeys };
+}
+
+// globally accessible helpers for manual toggling from console or other
+// scripts
+window.setMockMode = function(enable) {
+    useMockData = !!enable;
+    if (useMockData) {
+        cachedSetPromise = Promise.resolve(createMockWordData());
+        console.log('mock word data enabled');
+    } else {
+        cachedSetPromise = null; // force reload on next call
+        console.log('mock word data disabled');
+    }
+};
+
+// ------------------------------------------------------------------------
+
 const input = document.getElementById('inputText');
 const output = document.getElementById('output');
 const statusEl = document.getElementById('statusText');
@@ -71,6 +112,15 @@ function setupNavigation() {
 
 async function loadWordSet() {
     console.log('loadWordSet starting');
+
+    // if the mock mode is enabled we can immediately return a tiny dataset
+    if (useMockData) {
+        updateStatus('Wczytywanie mockowego słownika');
+        updateLoadingProgress(100);
+        // make a short delay so UI still has a chance to render status
+        await new Promise(r => setTimeout(r, 50));
+        return createMockWordData();
+    }
 
     function buildLengthKeys(map) {
         const lengthKeys = {};
@@ -356,14 +406,111 @@ async function newGame(wordData, count) {
     updateGameUI();
 }
 
+function renderLetterTiles() {
+    const display = document.getElementById('letterDisplay');
+    display.innerHTML = '';
+    gameState.letters.split('').forEach((ch, idx) => {
+        const span = document.createElement('span');
+        span.className = 'letter-tile';
+        if (draggingIndex === idx) span.classList.add('dragging');
+        span.textContent = ch;
+        span.dataset.index = idx;
+        // start manual drag via pointer
+        span.addEventListener('pointerdown', tilePointerDown);
+
+        display.appendChild(span);
+    });
+}
+
+// global state for pointer dragging
+let draggingIndex = null;
+let floatingEl = null;
+
+// helper to swap letters in gameState and update display
+function swapLetters(i, j) {
+    const arr = gameState.letters.split('');
+    const [letter] = arr.splice(i, 1);
+    arr.splice(j, 0, letter);
+    gameState.letters = arr.join('');
+}
+
+function tilePointerDown(e) {
+        // Prevent scrolling and selection during drag
+        document.body.style.touchAction = 'none';
+        document.body.style.userSelect = 'none';
+    e.preventDefault();
+    const idx = parseInt(this.dataset.index, 10);
+    draggingIndex = idx;
+
+    // create a floating clone for the dragged tile
+    floatingEl = this.cloneNode(true);
+    floatingEl.classList.add('letter-tile', 'floating');
+    document.body.appendChild(floatingEl);
+    moveFloating(e);
+
+    // hide the original via rendering (it will get .dragging)
+    renderLetterTiles();
+
+    // listeners on window so they persist even if tile is re-rendered
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp, { passive: false });
+    window.addEventListener('pointercancel', onPointerUp, { passive: false });
+}
+
+function moveFloating(e) {
+    if (!floatingEl) return;
+    // position centered under pointer
+    const x = e.pageX - floatingEl.offsetWidth / 2;
+    const y = e.pageY - floatingEl.offsetHeight / 2;
+    floatingEl.style.left = x + 'px';
+    floatingEl.style.top = y + 'px';
+}
+
+function onPointerMove(e) {
+    moveFloating(e);
+    const elem = document.elementFromPoint(e.clientX, e.clientY);
+        if (elem && elem.classList.contains('letter-tile') && !elem.classList.contains('floating')) {
+            const dst = parseInt(elem.dataset.index, 10);
+            if (dst !== draggingIndex) {
+                swapLetters(draggingIndex, dst);
+                draggingIndex = dst;
+                renderLetterTiles();
+                // handleGuess(gameState.letters); // auto-check disabled, use button
+            }
+        }
+}
+
+function onPointerUp(e) {
+        // Restore scrolling and selection
+        document.body.style.touchAction = '';
+        document.body.style.userSelect = '';
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerup', onPointerUp);
+    document.removeEventListener('pointercancel', onPointerUp);
+    // remove listeners from window
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+    if (floatingEl && floatingEl.parentNode) floatingEl.parentNode.removeChild(floatingEl);
+    floatingEl = null;
+    draggingIndex = null;
+    renderLetterTiles();
+}
+
+
 function updateGameUI() {
-    document.getElementById('letterDisplay').textContent = gameState.letters.split('').join(' ');
+    // original textual display replaced by interactive tiles (pointer drag)
     document.getElementById('solutionCount').textContent = gameState.solutions.length;
     const guessList = document.getElementById('guessList');
     guessList.innerHTML = '';
     const guessInput = document.getElementById('guessInput');
-    guessInput.value = '';
-    guessInput.style.backgroundColor = '';
+    if (guessInput) {
+        guessInput.value = '';
+        guessInput.style.backgroundColor = '';
+        // hide text input when using drag interface
+        guessInput.style.display = 'none';
+    }
+    renderLetterTiles();
 }
 
 function handleGuess(guess) {
@@ -391,11 +538,19 @@ function handleGuess(guess) {
 function setupGameControls() {
     const guessInput = document.getElementById('guessInput');
     if (guessInput) {
-        // check after every keystroke
+        // keep the existing listener around in case we ever re-enable the field
         guessInput.addEventListener('input', () => {
             handleGuess(guessInput.value);
         });
+        // hide text input when pointer drag interface is available
+        guessInput.style.display = 'none';
     }
+        const checkBtn = document.getElementById('checkBtn');
+        if (checkBtn) {
+            checkBtn.addEventListener('click', () => {
+                handleGuess(gameState.letters);
+            });
+        }
     const giveUp = document.getElementById('giveUpBtn');
     if (giveUp) {
         giveUp.addEventListener('click', () => {
@@ -431,8 +586,8 @@ function setupGameControls() {
             // reshuffle current letters order without clearing user's guess
             if (gameState.letters) {
                 gameState.letters = shuffleArray(gameState.letters.split('')).join('');
-                // only update the display of letters
-                document.getElementById('letterDisplay').textContent = gameState.letters.split('').join(' ');
+                renderLetterTiles();
+                handleGuess(gameState.letters);
             }
         });
     }
