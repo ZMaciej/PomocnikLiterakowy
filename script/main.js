@@ -83,18 +83,18 @@ function showSection(name) {
 
 function navigateTo(name) {
     // redirect any "home" requests to the check page as it's now the landing screen
-    if (name === 'home') name = 'check';
+    if (name === 'home') name = 'game';
     location.hash = name;
     showSection(name);
 }
 
 function handleHashChange() {
     const hash = location.hash.replace(/^#/, '');
-    if (!hash) return navigateTo('check');
+    if (!hash) return navigateTo('game');
     if (['check','game'].includes(hash)) {
         showSection(hash);
     } else {
-        navigateTo('check');
+        navigateTo('game');
     }
 }
 
@@ -103,7 +103,7 @@ window.addEventListener('hashchange', handleHashChange);
 // wire nav buttons once DOM ready
 function setupNavigation() {
     // "home" button now acts as the check page link
-    document.getElementById('btn-home').addEventListener('click', () => navigateTo('check'));
+    document.getElementById('btn-check').addEventListener('click', () => navigateTo('check'));
     document.getElementById('btn-game').addEventListener('click', () => navigateTo('game'));
 }
 
@@ -377,7 +377,7 @@ async function startGame() {
     // ensure words are loaded first
     try {
         const wordData = await getWordSet();
-        const count = parseInt(document.getElementById('letterCount').value, 10) || 7;
+        const count = gameState.count || 7;
         await newGame(wordData, count);
     } catch (e) {
         console.error('Cannot start game', e);
@@ -503,6 +503,12 @@ function updateGameUI() {
     document.getElementById('solutionCount').textContent = gameState.solutions.length;
     const guessList = document.getElementById('guessList');
     guessList.innerHTML = '';
+    const correctSection = document.getElementById('correctSection');
+    if (gameState.found.size > 0) {
+        correctSection.classList.remove('hidden');
+    } else {
+        correctSection.classList.add('hidden');
+    }
     const guessInput = document.getElementById('guessInput');
     if (guessInput) {
         guessInput.value = '';
@@ -529,6 +535,12 @@ function handleGuess(guess) {
         document.getElementById('guessList').appendChild(div);
         guessInput.style.backgroundColor = 'lightgreen';
         // keep the input text so player can continue editing
+        const correctSection = document.getElementById('correctSection');
+        if (gameState.found.size > 0) {
+            correctSection.classList.remove('hidden');
+        } else {
+            correctSection.classList.add('hidden');
+        }
     } else {
         guessInput.style.backgroundColor = '';
     }
@@ -545,12 +557,12 @@ function setupGameControls() {
         // hide text input when pointer drag interface is available
         guessInput.style.display = 'none';
     }
-        const checkBtn = document.getElementById('checkBtn');
-        if (checkBtn) {
-            checkBtn.addEventListener('click', () => {
-                handleGuess(gameState.letters);
-            });
-        }
+    const checkBtn = document.getElementById('checkBtn');
+    if (checkBtn) {
+        checkBtn.addEventListener('click', () => {
+            handleGuess(gameState.letters);
+        });
+    }
     const giveUp = document.getElementById('giveUpBtn');
     if (giveUp) {
         giveUp.addEventListener('click', () => {
@@ -566,12 +578,14 @@ function setupGameControls() {
                 div.appendChild(a);
                 list.appendChild(div);
             });
+            const correctSection = document.getElementById('correctSection');
+            correctSection.classList.remove('hidden');
         });
     }
     const nextBtn = document.getElementById('nextBtn');
     if (nextBtn) {
         nextBtn.addEventListener('click', async () => {
-            const count = parseInt(document.getElementById('letterCount').value, 10) || 7;
+            const count = gameState.count || 7;
             try {
                 const wordData = await getWordSet();
                 await newGame(wordData, count);
@@ -591,6 +605,38 @@ function setupGameControls() {
             }
         });
     }
+    const btn6Count = document.getElementById('Btn6');
+    const btn7Count = document.getElementById('Btn7');
+    const btn8Count = document.getElementById('Btn8');
+    const btn9Count = document.getElementById('Btn9');
+    let countButtons = [btn6Count, btn7Count, btn8Count, btn9Count];
+    if (btn6Count) {
+        btn6Count.addEventListener('click', () => {
+            handleCountSelect(6, btn6Count, countButtons);
+        });
+    }
+    if (btn7Count) {
+        btn7Count.addEventListener('click', () => {
+            handleCountSelect(7, btn7Count, countButtons);
+        });
+    }
+    if (btn8Count) {
+        btn8Count.addEventListener('click', () => {
+            handleCountSelect(8, btn8Count, countButtons);
+        });
+    }
+    if (btn9Count) {
+        btn9Count.addEventListener('click', () => {
+            handleCountSelect(9, btn9Count, countButtons);
+        });
+    }
+}
+
+function handleCountSelect(count, selectedButton, countButtons) {
+    countButtons.forEach(btn => btn.classList.remove('chosen'));
+    selectedButton.classList.add('chosen');
+    gameState.count = count;
+    startGame();
 }
 
 // ensure game controls initialized during global init

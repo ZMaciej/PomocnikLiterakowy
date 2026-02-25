@@ -7,10 +7,13 @@ label { display: block; margin-bottom: 0.5rem; }
 
 /* frame around correct answers */
 #correctSection {
-    border: 1px solid #444;
-    padding: 0.5rem;
+    border: 1px solid #7c7c7c;
+    padding-left: 0.8rem;
     border-radius: 4px;
     background: #f9f9f9;
+}
+#correctSection.hidden {
+    display: none;
 }
 
 /* loading overlay */
@@ -83,4 +86,65 @@ label { display: block; margin-bottom: 0.5rem; }
 #loadingProgress::-moz-progress-bar {
     background: linear-gradient(90deg, #4CAF50, #45a049);
     border-radius: 4px;
+}
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 0,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24
+}
+
+#letterDisplay {
+  display: flex;
+  flex-direction: row;
+  padding-bottom: 1rem;
+  padding-top: 1rem;
+}
+
+#mix {
+  display: flex;
+  flex-direction: column;
+}
+#nextBtn{
+  margin-left: 1.2rem;
+}
+#next {
+  display: flex;
+  flex-direction: column;
+}
+
+#checkBtn {
+  align-self: stretch;
+  width: 10rem;
+  margin-right: 0.4rem;
+}
+
+#controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.chosen {
+  color: #ffffff;
+  border: 1px solid #7c7c7c;
+  border-radius: 3px;
+  padding: 0.4rem;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+  background: #84df87;
+}
+
+#possibleCount {
+  margin-top: 0.5rem;
+  font-size: small;
+}
+
+#guessList {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  padding-left: 0.4rem;
+  padding-bottom: 0.8rem;
 }
