@@ -43,6 +43,40 @@ const input = document.getElementById('inputText');
 const output = document.getElementById('output');
 const statusEl = document.getElementById('statusText');
 
+const skipComments = [
+    "zjebie",
+    "idywiduum o skromnych horyzontach",
+    "tytanem intelektu to ty (specjalnie z małej) nie jesteś",
+    "7-letni chińczyk zrobiłby to lepiej",
+    "czy jakieś słowo zostanie w ogóle rozwiązane?",
+    "ten przycisk był tylko do testów, ale spoko, używaj go aż się popsuje",
+    "nie wiem czy to jest aż tak trudne, ale może po prostu to nie jest twoja mocna strona"
+];
+const incorrectChecksComments = [
+    "nie, to nie jest poprawne",
+    "niestety, to nie jest jedno z możliwych słów",
+    "nie, spróbuj ponownie",
+    "to nie jest poprawne, ale nie poddawaj się!",
+    "niestety, takiego słowa nie ma w słowniku",
+    "nie, to nie jest poprawne rozwiązanie"
+];
+const duplicatedCheckComments = [
+    "to słowo już zostało znalezione, spróbuj inne",
+    "już masz to słowo, poszukaj czegoś innego",
+    "to słowo jest już na liście, znajdź inne",
+    "to słowo już zostało odgadnięte, spróbuj innego",
+    "to słowo jest już zaliczone, poszukaj innego",
+    "to słowo już masz, spróbuj znaleźć inne"
+];
+const correctChecksComments = [
+    "essa!",
+    "jakbym mógł to dałbym Ci za to 67 punktów",
+    "niczym poeta/ka",
+    "niezły zasób słów, bratku/siostro",
+    "noo i o to właśnie chodzi",
+    "JAZDAAA!"
+];
+
 function updateStatus(msg) {
     if (statusEl) statusEl.textContent = msg;
     const alt = document.getElementById('statusTextGame');
@@ -647,3 +681,10 @@ if (document.readyState === 'loading') {
 }
 
 // --- end game logic --------------------------------------------------------
+
+// TODO:
+// - słowo dnia do zgadnięcia w minigrze
+// - karta ze statystykami: 
+//  - częstość liter
+//  - najczęstsze początki/końcówki dla konkretnych długości wyrazów
+//  - rozkład ilościowy stosunku spółgłosek do samogłosek w wyrazach konkretnych długości
