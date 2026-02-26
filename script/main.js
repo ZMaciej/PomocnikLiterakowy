@@ -556,7 +556,6 @@ function updateGameUI() {
 function handleGuess(guess) {
     const normalized = guess.trim().toLowerCase();
     if (!normalized) return;
-    const guessInput = document.getElementById('guessInput');
     if (gameState.solutions.includes(normalized) && !gameState.found.has(normalized)) {
         gameState.found.add(normalized);
         const a = document.createElement('a');
@@ -567,7 +566,6 @@ function handleGuess(guess) {
         const div = document.createElement('div');
         div.appendChild(a);
         document.getElementById('guessList').appendChild(div);
-        guessInput.style.backgroundColor = 'lightgreen';
         // keep the input text so player can continue editing
         const correctSection = document.getElementById('correctSection');
         if (gameState.found.size > 0) {
@@ -575,9 +573,48 @@ function handleGuess(guess) {
         } else {
             correctSection.classList.add('hidden');
         }
-    } else {
-        guessInput.style.backgroundColor = '';
+        confettiSeries();
     }
+}
+
+function confettiSeries() {
+    const count = 2; // number of confetti bursts
+    let totalDelay = 0;
+    delayProfile = [200];
+    for (let i = 0; i < count; i++) {
+        setTimeout(fireConfetti, totalDelay);
+        let delay = delayProfile[i % delayProfile.length];
+        totalDelay += delay;
+    }
+}
+
+function fireConfetti(){
+    relativePosition = getRelativeCoordinatesOnScreen('correctSection');
+    var defaults = {
+        spread: 55,
+        colors: ['#43B243', '#DEB617', '#537AD5', '#D56253'],
+        startVelocity: 30,
+        particleCount: 100,
+    };
+    confetti({
+        ...defaults,
+        angle: 45,
+        origin: { x: 0, y: relativePosition.y }
+    });
+    confetti({
+        ...defaults,
+        angle: 135,
+        origin: { x: 1, y: relativePosition.y }
+    });
+}
+function getRelativeCoordinatesOnScreen(elementName) {
+    const element = document.getElementById(elementName);
+    const rect = element.getBoundingClientRect();
+    viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const x = rect.left/viewportWidth + (rect.width / 2) / viewportWidth;
+    const y = rect.top/viewportHeight + (rect.height / 2) / viewportHeight;
+    return { x, y };
 }
 
 // hook up game controls once DOM ready
@@ -683,7 +720,7 @@ if (document.readyState === 'loading') {
 // --- end game logic --------------------------------------------------------
 
 // TODO:
-// - słowo dnia do zgadnięcia w minigrze
+// - seria dnia do zgadnięcia w minigrze
 // - karta ze statystykami: 
 //  - częstość liter
 //  - najczęstsze początki/końcówki dla konkretnych długości wyrazów

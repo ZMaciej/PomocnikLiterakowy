@@ -98,6 +98,7 @@ label { display: block; margin-bottom: 0.5rem; }
 #letterDisplay {
   display: flex;
   flex-direction: row;
+  width: 100%;
   padding-bottom: 1rem;
   padding-top: 1rem;
 }
