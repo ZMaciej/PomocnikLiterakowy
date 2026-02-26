@@ -607,6 +607,7 @@ function fireConfetti(){
         origin: { x: 1, y: relativePosition.y }
     });
 }
+
 function getRelativeCoordinatesOnScreen(elementName) {
     const element = document.getElementById(elementName);
     const rect = element.getBoundingClientRect();
