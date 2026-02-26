@@ -177,19 +177,18 @@ async function loadWordSet() {
     }
 
     const reader = resp.body.getReader();
-    const contentLength = resp.headers.get('Content-Length');
     let received = 0;
     let chunks = [];
+    var start = new Date().getTime();
     while (true) {
+        var now = new Date().getTime();
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value);
         received += value.length;
-        if (contentLength) {
-            const percent = Math.floor((received / contentLength) * 100);
-            updateLoadingProgress(percent);
-            updateStatus(`Pobieranie listy słów... (${percent}%)`);
-        }
+        timePassed = (now - start) / 1000;
+        updateLoadingProgress(20);
+        updateStatus(`Pobieranie listy słów... (${timePassed}s)`);
     }
 
     const decoder = new TextDecoder();
