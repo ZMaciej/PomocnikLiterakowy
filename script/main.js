@@ -7,7 +7,10 @@
 let useMockData = location.search.includes('mock');
 
 function createMockWordData() {
-    const words = ['ma', 'ala', 'kot', 'tam', 'kota', 'flopy', 'skisła', 'śreżoga', 'pokwitli', 'kołkująca', 'nieuleczań', 'designerowi', 'redesignowi', 'serpentynami', 'nieprzepysznych'];
+    const words = ['ma', 'ala', 'kot', 'tam', 'kota', 'flopy', 
+        'skisła', 'śreżoga', 'żółtość', 'pokwitli', 'kołkująca',
+        'nieuleczań', 'designerowi', 'redesignowi', 'serpentynami',
+        'nieprzepysznych'];
     const map = {};
     const set = new Set(words);
     for (const w of words) {
@@ -49,7 +52,6 @@ const skipComments = [
     "tytanem intelektu to ty (specjalnie z małej) nie jesteś",
     "7-letni chińczyk zrobiłby to lepiej",
     "czy jakieś słowo zostanie w ogóle rozwiązane?",
-    "ten przycisk był tylko do testów, ale spoko, używaj go aż się popsuje",
     "nie wiem czy to jest aż tak trudne, ale może po prostu to nie jest twoja mocna strona"
 ];
 const incorrectChecksComments = [
@@ -74,7 +76,7 @@ const correctChecksComments = [
     "niczym poeta/ka",
     "niezły zasób słów, bratku/siostro",
     "noo i o to właśnie chodzi",
-    "JAZDAAA!"
+    "JEDZIEMYY!"
 ];
 
 function updateStatus(msg) {
@@ -718,6 +720,67 @@ if (document.readyState === 'loading') {
 }
 
 // --- end game logic --------------------------------------------------------
+
+async function getWordWithMostAnagrams() {
+    const wordData = await getWordSet();
+    let maxCount = 0;
+    let maxKey = null;
+    for (const key of Object.keys(wordData.map)) {
+        const count = wordData.map[key].length;
+        if (count > maxCount) {
+            maxCount = count;
+            maxKey = key;
+        }
+    }
+    return { key: maxKey, count: maxCount, words: wordData.map[maxKey] };
+}
+
+async function getEveryWordWithEveryPointsLetter(letterCount) {
+    // gets a list of words that contain at least one letter for each point
+    // value (1,2,3,5) and returns the list sorted by total score, highest
+    // first
+    const wordData = await getWordSet();
+    const literakiData = new LiterakiData();
+    const matchingWords = [];
+    
+    for (const key of Object.keys(wordData.map)) {
+        const words = wordData.map[key];
+        for (const w of words) {
+            if (w.length !== letterCount) continue;
+            let wordScore = 0;
+            let onePointerPresent = false;
+            let twoPointerPresent = false;
+            let threePointerPresent = false;
+            let fivePointerPresent = false;
+            
+            for (const ch of w) {
+                const points = literakiData.getLetterPoint(ch);
+                switch (points) {
+                    case 1: onePointerPresent = true; break;
+                    case 2: twoPointerPresent = true; break;
+                    case 3: threePointerPresent = true; break;
+                    case 5: fivePointerPresent = true; break;
+                }
+                wordScore += points;
+            }
+            
+            const presentScore = 
+              (onePointerPresent ? 1 : 0) +
+              (twoPointerPresent ? 1 : 0) +
+              (threePointerPresent ? 1 : 0) +
+              (fivePointerPresent ? 1 : 0);
+              
+            if (presentScore === 4) {
+                matchingWords.push({ word: w, score: wordScore });
+            }
+        }
+    }
+    
+    // Sort by score, highest first
+    matchingWords.sort((a, b) => b.score - a.score);
+    
+    return matchingWords;
+}
 
 // TODO:
 // - seria dnia do zgadnięcia w minigrze
