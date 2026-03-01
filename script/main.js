@@ -759,7 +759,7 @@ function renderLetterTiles() {
         const span = document.createElement('span');
         span.className = 'letter-tile';
         if (draggingIndex === idx) span.classList.add('dragging');
-        span.textContent = ch;
+        span.textContent = ch.toUpperCase();
         span.dataset.index = idx;
         // start manual drag via pointer
         span.addEventListener('pointerdown', tilePointerDown);
