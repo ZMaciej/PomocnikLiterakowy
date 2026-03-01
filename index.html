@@ -16,15 +16,15 @@
 </head>
 <body>
     <div id="header-panel">
-      <div id="started-game-controls">
+            <div id="started-game-controls" class="hidden">
         <span id="timer-value">00:00</span>
         <button id="stop-game">🛑</button>
       </div>
       <button id="game-of-the-day" class="hidden">gra dnia</button>
       <h3>Pomocnik Literakowy</h3>
-      <div id="points-panel">
-        <span id="recent-difference" class="green">+0</span>
-        <span id="points">666</span>
+        <div id="points-panel" class="hidden">
+          <span id="recent-difference">0</span>
+          <span id="points">0</span>
       </div>
     </div>
 
@@ -50,29 +50,28 @@
     </section>
 
     <section id="game-section" class="page-section" style="display:none;">
-        <div id="game-controls">
-            <div id="letterCountButtons" style="display:inline-block; margin-left:0.5rem;">
-                Liczba liter:
-                <button id="Btn6">6</button>
-                <button class="chosen" id="Btn7">7</button>
-                <button id="Btn8">8</button>
-                <button id="Btn9">9</button>
-            </div>
-            <!-- <input type="number" id="letterCount" min="1" max="15" value="7"> -->
+      <div class="controls">
+        <div id="letterCountButtons" style="display:inline-block; margin-left:0.5rem;">
+            Liczba liter:
+            <button id="Btn6">6</button>
+            <button class="chosen" id="Btn7">7</button>
+            <button id="Btn8">8</button>
+            <button id="Btn9">9</button>
         </div>
-        <div id="letterDisplay" style="font-size:1.5rem; margin:0.5rem 0;"></div>
-        <div id="controls">
+        <button id="nextBtn">
+            <div id="next">
+                <span class="material-symbols-outlined">arrow_forward</span>
+                next
+            </div>
+        </button>
+      </div>
+      <div id="letterDisplay" style="font-size:1.5rem; margin:0.5rem 0;"></div>
+        <div class="controls">
             <button id="checkBtn">Sprawdź</button>
             <button id="shuffleBtn">
                 <div id="mix">
                     <span class="material-symbols-outlined">refresh</span>
                     mixuj
-                </div>
-            </button>
-            <button id="nextBtn">
-                <div id="next">
-                    <span class="material-symbols-outlined">arrow_forward</span>
-                    next
                 </div>
             </button>
         </div>
@@ -83,6 +82,16 @@
         </div>
         <button id="giveUpBtn" style="margin-top:0.5rem;">poddaję się - pokaż wszystko</button>
     </section>
+
+    <div id="game-of-day-overlay" class="hidden">
+        <div id="game-of-day-modal">
+            <h2>Koniec gry dnia</h2>
+            <p>Twój wynik: <strong><span id="game-of-day-score">0</span> pkt</strong></p>
+            <p style="font-size: small; margin-top: 0.8rem;">Słowa:</p>
+            <p id="game-of-day-words-list" style="word-break: break-word;"></p>
+            <button id="game-of-day-return">Wróć do normalnego trybu</button>
+        </div>
+    </div>
 
     <script src="script/main.js" defer></script>
     <script src="script/LiterakiData.js" defer></script>

@@ -108,6 +108,7 @@ function updateLoadingProgress(percent) {
 function showSection(name) {
     const sections = document.querySelectorAll('.page-section');
     sections.forEach(s => s.style.display = s.id === name + '-section' ? '' : 'none');
+    updateGameModeUI();
     if (name === 'game') {
         // only initialize game once; subsequent navigations keep current state
         if (!gameState.letters) {
@@ -393,16 +394,97 @@ input.addEventListener('input', async () => {
 
 // --- game logic ------------------------------------------------------------
 
+function hashStringToUint32(input) {
+    let hash = 2166136261;
+    for (let i = 0; i < input.length; i++) {
+        hash ^= input.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+}
+
+function createSeededRandom(seedString) {
+    let state = hashStringToUint32(seedString);
+    return function nextRandom() {
+        state += 0x6D2B79F5;
+        let t = state;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function createRngController(seedString) {
+    const random = createSeededRandom(seedString);
+    return {
+        seed: seedString,
+        next() {
+            return random();
+        },
+        int(maxExclusive) {
+            if (maxExclusive <= 0) return 0;
+            return Math.floor(random() * maxExclusive);
+        }
+    };
+}
+
+function pad2(value) {
+    return String(value).padStart(2, '0');
+}
+
+function getTodaySeedString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+
+function getSessionSeedString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+}
+
+const randomControl = {
+    mode: 'normal',
+    normalSeedBase: getSessionSeedString(),
+    dailySeedBase: getTodaySeedString(),
+    wordRng: null,
+    mixRng: null
+};
+
+function configureRandomMode(mode) {
+    const isDaily = mode === 'daily';
+    const baseSeed = isDaily ? randomControl.dailySeedBase : randomControl.normalSeedBase;
+    randomControl.mode = isDaily ? 'daily' : 'normal';
+    randomControl.wordRng = createRngController(`${baseSeed}:word-sequence`);
+    randomControl.mixRng = createRngController(`${baseSeed}:letter-mix`);
+}
+
+configureRandomMode('normal');
+
+const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
+
 let gameState = {
     letters: '',
     solutions: [],
     found: new Set(),
-    count: 7
+    count: 7,
+    skipPenaltyApplied: false,
+    roundNumber: 0,
+    roundRevealed: false
 };
 
-function shuffleArray(arr) {
+let gameOfDayState = {
+    active: false,
+    score: 0,
+    secondsLeft: GAME_OF_DAY_DURATION_SECONDS,
+    timerId: null,
+    allSolutions: [],
+    allFound: new Set()
+};
+
+function shuffleArray(arr, rng) {
+    const randomInt = rng ? max => rng.int(max) : max => Math.floor(Math.random() * max);
     for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = randomInt(i + 1);
         [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
@@ -419,8 +501,226 @@ async function startGame() {
     }
 }
 
+function formatTimer(seconds) {
+    const safeSeconds = Math.max(0, seconds);
+    const minutes = Math.floor(safeSeconds / 60);
+    const restSeconds = safeSeconds % 60;
+    return `${pad2(minutes)}:${pad2(restSeconds)}`;
+}
+
+function updateGameModeUI() {
+    const startedControls = document.getElementById('started-game-controls');
+    const pointsPanel = document.getElementById('points-panel');
+    const gameOfDayBtn = document.getElementById('game-of-the-day');
+    const timerValue = document.getElementById('timer-value');
+    const pointsValue = document.getElementById('points');
+    const countButtons = document.querySelectorAll('#letterCountButtons button');
+
+    if (startedControls) startedControls.classList.toggle('hidden', !gameOfDayState.active);
+    if (pointsPanel) pointsPanel.classList.toggle('hidden', !gameOfDayState.active);
+    countButtons.forEach(btn => btn.disabled = gameOfDayState.active);
+
+    if (timerValue) {
+        timerValue.textContent = gameOfDayState.active
+            ? formatTimer(gameOfDayState.secondsLeft)
+            : '00:00';
+    }
+    if (pointsValue) {
+        pointsValue.textContent = String(gameOfDayState.active ? gameOfDayState.score : 0);
+    }
+
+    if (gameOfDayBtn) {
+        const gameSection = document.getElementById('game-section');
+        const isOnGameSection = gameSection ? gameSection.style.display !== 'none' : false;
+        gameOfDayBtn.textContent = 'gra dnia';
+        gameOfDayBtn.disabled = false;
+        if (gameOfDayState.active || !isOnGameSection) {
+            gameOfDayBtn.classList.add('hidden');
+        } else {
+            gameOfDayBtn.classList.remove('hidden');
+        }
+    }
+
+    showRecentDiff(0);
+}
+
+function showRecentDiff(delta) {
+    const recentDiffEl = document.getElementById('recent-difference');
+    if (!recentDiffEl) return;
+    const prefix = delta > 0 ? '+' : '';
+    recentDiffEl.textContent = `${prefix}${delta}`;
+    recentDiffEl.classList.remove('green', 'red');
+    if (delta > 0) {
+        recentDiffEl.classList.add('green');
+    } else if (delta < 0) {
+        recentDiffEl.classList.add('red');
+    }
+}
+
+function updateScore(delta) {
+    if (!gameOfDayState.active) return;
+    gameOfDayState.score += delta;
+    const pointsValue = document.getElementById('points');
+    if (pointsValue) pointsValue.textContent = String(gameOfDayState.score);
+    showRecentDiff(delta);
+}
+
+function addWordToGuessList(word, kind) {
+    const guessList = document.getElementById('guessList');
+    if (!guessList) return;
+
+    const div = document.createElement('div');
+    div.classList.add('guess-item');
+
+    const a = document.createElement('a');
+    a.textContent = word;
+    a.href = `https://sjp.pl/${encodeURIComponent(word)}`;
+    a.target = '_blank';
+    a.rel = 'noopener';
+
+    if (kind === 'correct') {
+        a.classList.add('guess-correct');
+    } else if (kind === 'missed') {
+        a.classList.add('guess-missed');
+    }
+
+    div.appendChild(a);
+    guessList.appendChild(div);
+}
+
+function addRoundSeparator() {
+    const guessList = document.getElementById('guessList');
+    if (!guessList) return;
+    const separator = document.createElement('div');
+    separator.classList.add('guess-separator');
+    separator.textContent = '---';
+    guessList.appendChild(separator);
+}
+
+function revealMissedWordsFromCurrentRound() {
+    if (gameState.roundRevealed) return;
+    const missedWords = gameState.solutions.filter(word => !gameState.found.has(word));
+    missedWords.forEach(word => addWordToGuessList(word, 'missed'));
+    gameState.roundRevealed = true;
+}
+
+function maybeApplySkipPenalty() {
+    if (!gameOfDayState.active) return;
+    if (gameState.skipPenaltyApplied) return;
+    const missedCount = Math.max(0, gameState.solutions.length - gameState.found.size);
+    gameState.skipPenaltyApplied = true;
+    if (missedCount > 0) {
+        updateScore(-5 * missedCount);
+    }
+}
+
+function stopGameOfDayTimer() {
+    if (gameOfDayState.timerId) {
+        clearInterval(gameOfDayState.timerId);
+        gameOfDayState.timerId = null;
+    }
+}
+
+function showGameOfDayResultOverlay() {
+    const overlay = document.getElementById('game-of-day-overlay');
+    const scoreEl = document.getElementById('game-of-day-score');
+    const wordListEl = document.getElementById('game-of-day-words-list');
+    
+    if (scoreEl) scoreEl.textContent = String(gameOfDayState.score);
+    
+    if (wordListEl) {
+        wordListEl.innerHTML = '';
+        gameOfDayState.allSolutions.forEach((word, idx) => {
+            if (idx > 0) {
+                const comma = document.createTextNode(', ');
+                wordListEl.appendChild(comma);
+            }
+            const a = document.createElement('a');
+            a.textContent = word;
+            a.href = `https://sjp.pl/${encodeURIComponent(word)}`;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            const normalizedWord = word.trim().toLowerCase();
+            if (gameOfDayState.allFound.has(normalizedWord)) {
+                a.classList.add('guess-correct');
+            } else {
+                a.classList.add('guess-missed');
+            }
+            wordListEl.appendChild(a);
+        });
+    }
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+function hideGameOfDayResultOverlay() {
+    const overlay = document.getElementById('game-of-day-overlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+function finishGameOfDay() {
+    if (!gameOfDayState.active) return;
+    stopGameOfDayTimer();
+    
+    // Aplikuj karę za nieodgadnięte słowa z aktualnej rundy
+    const missedCount = Math.max(0, gameState.solutions.length - gameState.found.size);
+    if (missedCount > 0) {
+        updateScore(-5 * missedCount);
+    }
+    
+    gameOfDayState.active = false;
+    updateGameModeUI();
+    showGameOfDayResultOverlay();
+}
+
+function startGameOfDayTimer() {
+    stopGameOfDayTimer();
+    const timerValue = document.getElementById('timer-value');
+    if (timerValue) timerValue.textContent = formatTimer(gameOfDayState.secondsLeft);
+    gameOfDayState.timerId = setInterval(() => {
+        gameOfDayState.secondsLeft -= 1;
+        if (timerValue) timerValue.textContent = formatTimer(gameOfDayState.secondsLeft);
+        if (gameOfDayState.secondsLeft <= 0) {
+            finishGameOfDay();
+        }
+    }, 1000);
+}
+
+async function startGameOfDay() {
+    hideGameOfDayResultOverlay();
+    configureRandomMode('daily');
+    gameOfDayState.active = true;
+    gameOfDayState.score = 0;
+    gameOfDayState.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
+    gameOfDayState.allSolutions = [];
+    gameOfDayState.allFound.clear();
+    showRecentDiff(0);
+    updateGameModeUI();
+    gameState.count = 7;
+    const wordData = await getWordSet();
+    await newGame(wordData, 7);
+    startGameOfDayTimer();
+}
+
+async function returnToNormalMode() {
+    stopGameOfDayTimer();
+    gameOfDayState.active = false;
+    gameOfDayState.score = 0;
+    gameOfDayState.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
+    hideGameOfDayResultOverlay();
+    configureRandomMode('normal');
+    updateGameModeUI();
+    await startGame();
+}
+
 async function newGame(wordData, count) {
     gameState.count = count;
+    gameState.roundNumber += 1;
+    if (gameOfDayState.active) {
+        const guessList = document.getElementById('guessList');
+        if (guessList && guessList.children.length > 0) {
+            addRoundSeparator();
+        }
+    }
     // choose random key of correct length using precomputed index
     const keys = (wordData.lengthKeys && wordData.lengthKeys[count]) ? wordData.lengthKeys[count] :
                  Object.keys(wordData.map).filter(k => k.length === count);
@@ -430,14 +730,25 @@ async function newGame(wordData, count) {
         gameState.letters = '';
         gameState.solutions = [];
         gameState.found.clear();
+        gameState.skipPenaltyApplied = false;
+        gameState.roundRevealed = false;
+        if (!gameOfDayState.active) {
+            const list = document.getElementById('guessList');
+            if (list) list.innerHTML = '';
+        }
         return;
     }
-    const key = keys[Math.floor(Math.random() * keys.length)];
-    const letters = shuffleArray(key.split('')).join('');
+    const key = keys[randomControl.wordRng.int(keys.length)];
+    const letters = shuffleArray(key.split(''), randomControl.mixRng).join('');
     const solutions = Array.from(new Set(wordData.map[key] || [])).sort();
     gameState.letters = letters;
     gameState.solutions = solutions;
     gameState.found.clear();
+    gameState.skipPenaltyApplied = false;
+    gameState.roundRevealed = false;
+    if (gameOfDayState.active) {
+        gameState.solutions.forEach(w => gameOfDayState.allSolutions.push(w));
+    }
     updateGameUI();
 }
 
@@ -537,9 +848,11 @@ function updateGameUI() {
     // original textual display replaced by interactive tiles (pointer drag)
     document.getElementById('solutionCount').textContent = gameState.solutions.length;
     const guessList = document.getElementById('guessList');
-    guessList.innerHTML = '';
+    if (!gameOfDayState.active) {
+        guessList.innerHTML = '';
+    }
     const correctSection = document.getElementById('correctSection');
-    if (gameState.found.size > 0) {
+    if (gameState.found.size > 0 || guessList.children.length > 0) {
         correctSection.classList.remove('hidden');
     } else {
         correctSection.classList.add('hidden');
@@ -554,19 +867,16 @@ function updateGameUI() {
     renderLetterTiles();
 }
 
-function handleGuess(guess) {
+async function handleGuess(guess) {
     const normalized = guess.trim().toLowerCase();
     if (!normalized) return;
     if (gameState.solutions.includes(normalized) && !gameState.found.has(normalized)) {
         gameState.found.add(normalized);
-        const a = document.createElement('a');
-        a.textContent = normalized;
-        a.href = `https://sjp.pl/${encodeURIComponent(normalized)}`;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        const div = document.createElement('div');
-        div.appendChild(a);
-        document.getElementById('guessList').appendChild(div);
+        if (gameOfDayState.active) {
+            updateScore(50);
+            gameOfDayState.allFound.add(normalized);
+        }
+        addWordToGuessList(normalized, 'correct');
         // keep the input text so player can continue editing
         const correctSection = document.getElementById('correctSection');
         if (gameState.found.size > 0) {
@@ -575,6 +885,15 @@ function handleGuess(guess) {
             correctSection.classList.add('hidden');
         }
         confettiSeries();
+        if (gameOfDayState.active && gameState.found.size === gameState.solutions.length) {
+            const count = gameState.count || 7;
+            try {
+                const wordData = await getWordSet();
+                await newGame(wordData, count);
+            } catch (e) {
+                console.error('Cannot generate next game', e);
+            }
+        }
     }
 }
 
@@ -621,6 +940,7 @@ function getRelativeCoordinatesOnScreen(elementName) {
 
 // hook up game controls once DOM ready
 function setupGameControls() {
+    updateGameModeUI();
     const guessInput = document.getElementById('guessInput');
     if (guessInput) {
         // keep the existing listener around in case we ever re-enable the field
@@ -639,18 +959,17 @@ function setupGameControls() {
     const giveUp = document.getElementById('giveUpBtn');
     if (giveUp) {
         giveUp.addEventListener('click', () => {
-            const list = document.getElementById('guessList');
-            list.innerHTML = '';
-            gameState.solutions.forEach(w => {
-                const a = document.createElement('a');
-                a.textContent = w;
-                a.href = `https://sjp.pl/${encodeURIComponent(w)}`;
-                a.target = '_blank';
-                a.rel = 'noopener';
-                const div = document.createElement('div');
-                div.appendChild(a);
-                list.appendChild(div);
-            });
+            maybeApplySkipPenalty();
+            if (!gameOfDayState.active) {
+                const list = document.getElementById('guessList');
+                list.innerHTML = '';
+                gameState.solutions.forEach(w => {
+                    const kind = gameState.found.has(w) ? 'correct' : 'missed';
+                    addWordToGuessList(w, kind);
+                });
+            } else {
+                revealMissedWordsFromCurrentRound();
+            }
             const correctSection = document.getElementById('correctSection');
             correctSection.classList.remove('hidden');
         });
@@ -658,6 +977,10 @@ function setupGameControls() {
     const nextBtn = document.getElementById('nextBtn');
     if (nextBtn) {
         nextBtn.addEventListener('click', async () => {
+            maybeApplySkipPenalty();
+            if (gameOfDayState.active) {
+                revealMissedWordsFromCurrentRound();
+            }
             const count = gameState.count || 7;
             try {
                 const wordData = await getWordSet();
@@ -672,12 +995,39 @@ function setupGameControls() {
         shuffleBtn.addEventListener('click', () => {
             // reshuffle current letters order without clearing user's guess
             if (gameState.letters) {
-                gameState.letters = shuffleArray(gameState.letters.split('')).join('');
+                gameState.letters = shuffleArray(gameState.letters.split(''), randomControl.mixRng).join('');
                 renderLetterTiles();
                 handleGuess(gameState.letters);
             }
         });
     }
+
+    const gameOfDayBtn = document.getElementById('game-of-the-day');
+    if (gameOfDayBtn) {
+        gameOfDayBtn.addEventListener('click', async () => {
+            try {
+                await startGameOfDay();
+            } catch (e) {
+                console.error('Cannot start game of the day', e);
+            }
+        });
+    }
+
+    const stopGameBtn = document.getElementById('stop-game');
+    if (stopGameBtn) {
+        stopGameBtn.addEventListener('click', async () => {
+            if (!gameOfDayState.active) return;
+            await returnToNormalMode();
+        });
+    }
+
+    const gameOfDayReturnBtn = document.getElementById('game-of-day-return');
+    if (gameOfDayReturnBtn) {
+        gameOfDayReturnBtn.addEventListener('click', async () => {
+            await returnToNormalMode();
+        });
+    }
+
     const btn6Count = document.getElementById('Btn6');
     const btn7Count = document.getElementById('Btn7');
     const btn8Count = document.getElementById('Btn8');

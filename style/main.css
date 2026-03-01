@@ -5,6 +5,11 @@ body {
     flex-direction: column;
     align-items: center;
 }
+#game-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
 nav { margin-bottom: 1.5rem; }
 nav button { margin-right: 0.5rem; }
@@ -18,10 +23,25 @@ label { display: block; margin-bottom: 0.5rem; }
     gap: 1rem;
 }
 
+#started-game-controls,
+#points-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#started-game-controls.hidden,
+#points-panel.hidden,
+#game-of-the-day.hidden,
+#game-of-day-overlay.hidden {
+  display: none;
+}
+
 /* frame around correct answers */
 #correctSection {
     border: 1px solid #7c7c7c;
-    padding-left: 0.8rem;
+    padding-left: 5rem;
+    padding-right: 5rem;
     border-radius: 4px;
     background: #f9f9f9;
 }
@@ -133,11 +153,11 @@ label { display: block; margin-bottom: 0.5rem; }
 
 #checkBtn {
   align-self: stretch;
-  width: 10rem;
+  width: 14rem;
   margin-right: 0.4rem;
 }
 
-#controls {
+.controls {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -161,9 +181,27 @@ label { display: block; margin-bottom: 0.5rem; }
 #guessList {
   display: flex;
   flex-wrap: wrap;
-  flex-direction: column;
+  flex-direction: column-reverse;
   padding-left: 0.4rem;
   padding-bottom: 0.8rem;
+}
+
+.guess-item {
+  margin-bottom: 0.15rem;
+}
+
+.guess-correct {
+  color: #37aa3a;
+}
+
+.guess-missed {
+  color: #c5183e;
+}
+
+.guess-separator {
+  margin: 0rem;
+  font-size: 0.5rem;
+  color: #666666;
 }
 
 .hidden {
@@ -181,4 +219,56 @@ label { display: block; margin-bottom: 0.5rem; }
 
 .green {
   color: #37aa3a;
+}
+
+.red {
+  color: #c5183e;
+}
+
+#game-of-day-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 10001;
+}
+
+#game-of-day-modal {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 1rem 1rem;
+  min-width: 280px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  margin: 1rem;
+}
+
+#game-of-day-modal h2 {
+  margin-top: 0;
+}
+
+#game-of-day-words-list {
+  display: inline;
+}
+
+#game-of-day-words-list a {
+  text-decoration: none;
+}
+
+#game-of-day-words-list a.guess-correct {
+  color: #37aa3a;
+}
+
+#game-of-day-words-list a.guess-missed {
+  color: #c5183e;
+}
+
+#timer-value {
+  width: 5ch;
 }
