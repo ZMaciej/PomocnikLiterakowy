@@ -895,7 +895,7 @@ async function handleGuess(guess) {
             }
         }
     } else {
-    triggerShake('letter-tile');
+        triggerShake('letter-tile');
     }
 }
 
@@ -1014,7 +1014,6 @@ function setupGameControls() {
             if (gameState.letters) {
                 gameState.letters = shuffleArray(gameState.letters.split(''), randomControl.mixRng).join('');
                 renderLetterTiles();
-                handleGuess(gameState.letters);
             }
         });
     }
