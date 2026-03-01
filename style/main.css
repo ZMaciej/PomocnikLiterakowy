@@ -1,9 +1,22 @@
-body { font-family: Arial, sans-serif; margin: 2rem; }
+body {
+    font-family: 'Poppins', sans-serif;
+    margin: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 nav { margin-bottom: 1.5rem; }
 nav button { margin-right: 0.5rem; }
 .page-section { margin-top: 1rem; }
 label { display: block; margin-bottom: 0.5rem; }
 #output { margin-top: 1rem; padding: 0.5rem; border: 1px solid #ccc; min-height: 1.5em; }
+
+#header-panel {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
 
 /* frame around correct answers */
 #correctSection {
@@ -17,11 +30,11 @@ label { display: block; margin-bottom: 0.5rem; }
 }
 
 /* loading overlay */
-#loadingOverlay {
+#loading-overlay {
     font-size: 1.1rem;
 }
 
-#loadingOverlay h2 {
+#loading-overlay h2 {
     margin-top: 0;
     margin-bottom: 1rem;
 }
@@ -46,14 +59,20 @@ label { display: block; margin-bottom: 0.5rem; }
     background: linear-gradient(90deg, #4CAF50, #45a049);
     border-radius: 4px;
 }
+
+.red-letter {
+    background-color: #F17861;
+    border: 1px solid #CF604B;
+}
+
 /* interactive letter tiles for game (pointer drag) */
 .letter-tile {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    margin: 0.2rem;
+    width: 2.3rem;
+    height: 2.3rem;
+    margin: 0.1rem;
     border: 1px solid #333;
     border-radius: 4px;
     cursor: grab;
@@ -76,12 +95,9 @@ label { display: block; margin-bottom: 0.5rem; }
     position: absolute;
     z-index: 10000;
     pointer-events: none;
-    transform: scale(1.5);
+    transform: scale(1.8);
 }
-.letter-tile.picked {
-    transform: scale(1.5);
-    opacity: 0.6;
-}
+
 /* Firefox progress bar */
 #loadingProgress::-moz-progress-bar {
     background: linear-gradient(90deg, #4CAF50, #45a049);
@@ -148,4 +164,21 @@ label { display: block; margin-bottom: 0.5rem; }
   flex-direction: column;
   padding-left: 0.4rem;
   padding-bottom: 0.8rem;
+}
+
+.hidden {
+  display: none;
+}
+
+#stop-game {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin: 0rem;
+  padding: 0rem;
+  font-size: 16px;
+}
+
+.green {
+  color: #37aa3a;
 }

@@ -89,7 +89,7 @@ function updateStatus(msg) {
 }
 
 function hideLoadingScreen() {
-    const overlay = document.getElementById('loadingOverlay');
+    const overlay = document.getElementById('loading-overlay');
     if (overlay) {
         overlay.style.display = 'none';
     }
@@ -779,6 +779,90 @@ async function getEveryWordWithEveryPointsLetter(letterCount) {
     // Sort by score, highest first
     matchingWords.sort((a, b) => b.score - a.score);
     
+    return matchingWords;
+}
+
+async function getEveryWordPoints(letterCount) {
+    const wordData = await getWordSet();
+    const literakiData = new LiterakiData();
+    const matchingWords = [];
+    
+    for (const key of Object.keys(wordData.map)) {
+        const words = wordData.map[key];
+        for (const w of words) {
+            if (w.length !== letterCount) continue;
+            let wordScore = 0;
+            
+            for (const ch of w) {
+                const points = literakiData.getLetterPoint(ch);
+                wordScore += points;
+            }
+            usedCharsCountMap = {};
+            for (const ch of w) {
+              usedCharsCountMap[ch] = (usedCharsCountMap[ch] || 0) + 1;
+            }
+            for (const ch in usedCharsCountMap) {
+              const isEnough = 
+                usedCharsCountMap[ch] <= literakiData.getLetterCount(ch);
+              if (!isEnough) {
+                wordScore = -1;
+                break;
+              }
+            }
+            
+            if (wordScore !== -1) {
+                matchingWords.push({ word: w, score: wordScore });
+            }
+        }
+    }
+    
+    // Sort by score, highest first
+    matchingWords.sort((a, b) => b.score - a.score);
+    
+    return matchingWords;
+}
+
+async function getMostValuableWordOfLength(length) {
+    const wordData = await getWordSet();
+    const literakiData = new LiterakiData();
+    let maxScore = 0;
+    let bestWord = null;
+    for (const key of Object.keys(wordData.map)) {
+        const words = wordData.map[key];
+        for (const w of words) {
+            if (w.length !== length) continue;
+            let wordScore = 0;
+            for (const ch of w) {
+                wordScore += literakiData.getLetterPoint(ch);
+            }
+            if (wordScore > maxScore) {
+                maxScore = wordScore;
+                bestWord = w;
+            }
+        }
+    }
+    return { word: bestWord, score: maxScore };
+}
+
+async function getWordsListWithXVowels(vowelCount, wordLength) {
+    const wordData = await getWordSet();
+    const literakiData = new LiterakiData();
+    const matchingWords = [];
+    for (const key of Object.keys(wordData.map)) {
+        const words = wordData.map[key];
+        for (const w of words) {
+            if (w.length !== wordLength) continue;
+            let count = 0;
+            for (const ch of w) {
+                if (literakiData.isVowel.has(ch.toUpperCase())) {
+                    count++;
+                }
+            }
+            if (count == vowelCount) {
+                matchingWords.push(w);
+            }
+        }
+    }
     return matchingWords;
 }
 

@@ -42,6 +42,8 @@ class LiterakiData {
       'B': 3, 'G': 3, 'H': 3, 'J': 3, 'Ł': 3, 'U': 3,
       'Ą': 5, 'Ć': 5, 'Ę': 5, 'F': 5, 'Ń': 5, 'Ó': 5, 'Ś': 5, 'Ź': 5, 'Ż': 5
     }
+    this.isVowel = new Set(['A', 'Ą', 'E', 'Ę', 'I', 'O', 'Ó', 'U', 'Y']);
+    // 9 vowels, 23 consonants
   }
 
   getLetterPoint(letter) {
