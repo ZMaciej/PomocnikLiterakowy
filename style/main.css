@@ -104,6 +104,7 @@ label { display: block; margin-bottom: 0.5rem; }
     box-sizing: border-box;
     touch-action: none;
 }
+
 .letter-tile.dragging {
     opacity: 0 !important; /* hide original while dragging */
     transition: none;
@@ -116,6 +117,20 @@ label { display: block; margin-bottom: 0.5rem; }
     z-index: 10000;
     pointer-events: none;
     transform: scale(1.8);
+}
+
+@keyframes shake-horizontal {
+  0%   { transform: translateX(0); }
+  20%  { transform: translateX(-8px); }
+  40%  { transform: translateX(8px); }
+  60%  { transform: translateX(-6px); }
+  80%  { transform: translateX(6px); }
+  100% { transform: translateX(0); }
+}
+
+.letter-tile.shake {
+  /* Apply the animation when the .shake class is present */
+  animation: shake-horizontal 350ms ease-in-out;
 }
 
 /* Firefox progress bar */

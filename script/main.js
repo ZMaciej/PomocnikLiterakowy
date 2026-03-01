@@ -894,6 +894,8 @@ async function handleGuess(guess) {
                 console.error('Cannot generate next game', e);
             }
         }
+    } else {
+    triggerShake('letter-tile');
     }
 }
 
@@ -926,6 +928,21 @@ function fireConfetti(){
         angle: 135,
         origin: { x: 1, y: relativePosition.y }
     });
+}
+
+function triggerShake(className) {
+    const elements = document.getElementsByClassName(className);
+    if (!elements) return;
+    for (const el of elements) {
+        el.classList.remove("shake");
+        // trigger reflow to restart animation
+        void el.offsetWidth;
+        el.classList.add("shake");
+
+        el.addEventListener("animationend", () => {
+            el.classList.remove("shake");
+        }, { once: true });
+    }
 }
 
 function getRelativeCoordinatesOnScreen(elementName) {
@@ -1071,6 +1088,7 @@ if (document.readyState === 'loading') {
 
 // --- end game logic --------------------------------------------------------
 
+// --- statistics functions for fun and profit -------------------------------
 async function getWordWithMostAnagrams() {
     const wordData = await getWordSet();
     let maxCount = 0;
@@ -1217,7 +1235,6 @@ async function getWordsListWithXVowels(vowelCount, wordLength) {
 }
 
 // TODO:
-// - seria dnia do zgadnięcia w minigrze
 // - karta ze statystykami: 
 //  - częstość liter
 //  - najczęstsze początki/końcówki dla konkretnych długości wyrazów
