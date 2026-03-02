@@ -320,10 +320,6 @@ function getWildcardKeys(str) {
 }
 
 
-
-
-
-
 // Polish plural declension
 function pluralForm(count) {
     if (count === 1) return 'słowo';
