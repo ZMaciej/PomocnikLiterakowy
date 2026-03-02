@@ -138,10 +138,15 @@ function handleHashChange() {
 window.addEventListener('hashchange', handleHashChange);
 
 // wire nav buttons once DOM ready
+let navigationSetup = false;
 function setupNavigation() {
+    if (navigationSetup) return;
+    navigationSetup = true;
     // "home" button now acts as the check page link
-    document.getElementById('btn-check').addEventListener('click', () => navigateTo('check'));
-    document.getElementById('btn-game').addEventListener('click', () => navigateTo('game'));
+    const btnCheck = document.getElementById('btn-check');
+    const btnGame = document.getElementById('btn-game');
+    if (btnCheck) btnCheck.addEventListener('click', () => navigateTo('check'));
+    if (btnGame) btnGame.addEventListener('click', () => navigateTo('game'));
 }
 
 // --- end routing support -----------------------------------------------------
@@ -720,10 +725,16 @@ async function newGame(wordData, count) {
         if (guessList && guessList.children.length > 0) {
             addRoundSeparator();
         }
+        // Limit guess list size to prevent memory issues
+        if (guessList && guessList.children.length > 200) {
+            while (guessList.children.length > 150) {
+                guessList.removeChild(guessList.firstChild);
+            }
+        }
     }
     // choose random key of correct length using precomputed index
     const keys = (wordData.lengthKeys && wordData.lengthKeys[count]) ? wordData.lengthKeys[count] :
-                 Object.keys(wordData.map).filter(k => k.length === count);
+                  Object.keys(wordData.map).filter(k => k.length === count);
     if (!keys || keys.length === 0) {
         document.getElementById('letterDisplay').textContent = 'Brak słów o takiej długości';
         document.getElementById('solutionCount').textContent = '0';
@@ -734,7 +745,11 @@ async function newGame(wordData, count) {
         gameState.roundRevealed = false;
         if (!gameOfDayState.active) {
             const list = document.getElementById('guessList');
-            if (list) list.innerHTML = '';
+            if (list) {
+                while (list.firstChild) {
+                    list.removeChild(list.firstChild);
+                }
+            }
         }
         return;
     }
@@ -755,31 +770,61 @@ async function newGame(wordData, count) {
 function renderLetterTiles() {
     const display = document.getElementById('letterDisplay');
     const literakiData = new LiterakiData();
-    display.innerHTML = '';
-    gameState.letters.split('').forEach((ch, idx) => {
-        const span = document.createElement('span');
-        span.className = 'letter-tile';
-        if (draggingIndex === idx) span.classList.add('dragging');
-        span.textContent = ch.toUpperCase();
-        points = literakiData.getLetterPoint(ch);
-        switch (points) {
-            case 1: span.classList.add('yellow-letter'); break;
-            case 2: span.classList.add('green-letter'); break;
-            case 3: span.classList.add('blue-letter'); break;
-            case 5: span.classList.add('red-letter'); break;
-            default: break; // no special class for 0 points (e.g. wildcard)
-        }
-        span.dataset.index = idx;
-        // start manual drag via pointer
-        span.addEventListener('pointerdown', tilePointerDown);
-
-        display.appendChild(span);
-    });
+    
+    // Only full rerender if tile count changed or tiles were never created
+    const needsFullRerender = tileElements.length !== gameState.letters.length || tileElements.length === 0;
+    
+    if (needsFullRerender) {
+        // Clean up old tiles
+        tileElements.forEach(tile => {
+            tile.removeEventListener('pointerdown', tilePointerDown);
+            tile.remove();
+        });
+        tileElements = [];
+        
+        gameState.letters.split('').forEach((ch, idx) => {
+            const span = document.createElement('span');
+            span.className = 'letter-tile';
+            if (draggingIndex === idx) span.classList.add('dragging');
+            span.textContent = ch.toUpperCase();
+            const points = literakiData.getLetterPoint(ch);
+            switch (points) {
+                case 1: span.classList.add('yellow-letter'); break;
+                case 2: span.classList.add('green-letter'); break;
+                case 3: span.classList.add('blue-letter'); break;
+                case 5: span.classList.add('red-letter'); break;
+                default: break;
+            }
+            span.dataset.index = idx;
+            span.addEventListener('pointerdown', tilePointerDown);
+            display.appendChild(span);
+            tileElements.push(span);
+        });
+    } else {
+        // Efficient update: update content and styles of existing tiles
+        gameState.letters.split('').forEach((ch, idx) => {
+            if (tileElements[idx]) {
+                tileElements[idx].textContent = ch.toUpperCase();
+                const points = literakiData.getLetterPoint(ch);
+                // Reset color classes
+                tileElements[idx].classList.remove('yellow-letter', 'green-letter', 'blue-letter', 'red-letter');
+                switch (points) {
+                    case 1: tileElements[idx].classList.add('yellow-letter'); break;
+                    case 2: tileElements[idx].classList.add('green-letter'); break;
+                    case 3: tileElements[idx].classList.add('blue-letter'); break;
+                    case 5: tileElements[idx].classList.add('red-letter'); break;
+                }
+                tileElements[idx].classList.remove('dragging');
+                if (draggingIndex === idx) tileElements[idx].classList.add('dragging');
+            }
+        });
+    }
 }
 
 // global state for pointer dragging
 let draggingIndex = null;
 let floatingEl = null;
+let tileElements = []; // cache of tile elements for efficient updates during drag
 
 // helper to swap letters in gameState and update display
 function swapLetters(i, j) {
@@ -790,21 +835,30 @@ function swapLetters(i, j) {
 }
 
 function tilePointerDown(e) {
-        // Prevent scrolling and selection during drag
-        document.body.style.touchAction = 'none';
-        document.body.style.userSelect = 'none';
+    // Prevent scrolling and selection during drag
+    document.body.style.touchAction = 'none';
+    document.body.style.userSelect = 'none';
     e.preventDefault();
     const idx = parseInt(this.dataset.index, 10);
     draggingIndex = idx;
 
-    // create a floating clone for the dragged tile
-    floatingEl = this.cloneNode(true);
-    floatingEl.classList.add('letter-tile', 'floating');
+    // create a floating clone WITHOUT deep cloning to avoid copying listeners
+    floatingEl = document.createElement('span');
+    floatingEl.className = 'letter-tile floating';
+    floatingEl.textContent = this.textContent;
+    // copy style classes for visual consistency
+    Array.from(this.classList).forEach(cls => {
+        if (cls !== 'letter-tile' && cls !== 'dragging') {
+            floatingEl.classList.add(cls);
+        }
+    });
     document.body.appendChild(floatingEl);
     moveFloating(e);
 
-    // hide the original via rendering (it will get .dragging)
-    renderLetterTiles();
+    // Mark original tiles with dragging state via CSS class instead of recreating
+    tileElements.forEach((tile, i) => {
+        tile.classList.toggle('dragging', i === idx);
+    });
 
     // listeners on window so they persist even if tile is re-rendered
     window.addEventListener('pointermove', onPointerMove, { passive: false });
@@ -824,32 +878,61 @@ function moveFloating(e) {
 function onPointerMove(e) {
     moveFloating(e);
     const elem = document.elementFromPoint(e.clientX, e.clientY);
-        if (elem && elem.classList.contains('letter-tile') && !elem.classList.contains('floating')) {
-            const dst = parseInt(elem.dataset.index, 10);
-            if (dst !== draggingIndex) {
-                swapLetters(draggingIndex, dst);
-                draggingIndex = dst;
-                renderLetterTiles();
-                // handleGuess(gameState.letters); // auto-check disabled, use button
+    if (elem && elem.classList.contains('letter-tile') && !elem.classList.contains('floating')) {
+        const dst = parseInt(elem.dataset.index, 10);
+        if (dst !== draggingIndex) {
+            swapLetters(draggingIndex, dst);
+            // Efficiently swap visual representation without full rerender
+            if (tileElements[draggingIndex] && tileElements[dst]) {
+                swapTileElements(draggingIndex, dst);
             }
+            draggingIndex = dst;
+            // handleGuess(gameState.letters); // auto-check disabled, use button
         }
+    }
+}
+
+function swapTileElements(i, j) {
+    if (!tileElements[i] || !tileElements[j]) return;
+    // Swap the text content and letter classes efficiently
+    const tempText = tileElements[i].textContent;
+    const tempClasses = Array.from(tileElements[i].classList);
+    
+    tileElements[i].textContent = tileElements[j].textContent;
+    tileElements[i].className = tileElements[j].className;
+    
+    tileElements[j].textContent = tempText;
+    tileElements[j].className = '';
+    tempClasses.forEach(cls => tileElements[j].classList.add(cls));
+    
+    // Update indices
+    tileElements[i].dataset.index = i;
+    tileElements[j].dataset.index = j;
+    
+    // Mark current dragging tile
+    tileElements[i].classList.remove('dragging');
+    tileElements[j].classList.add('dragging');
 }
 
 function onPointerUp(e) {
-        // Restore scrolling and selection
-        document.body.style.touchAction = '';
-        document.body.style.userSelect = '';
-    document.removeEventListener('pointermove', onPointerMove);
-    document.removeEventListener('pointerup', onPointerUp);
-    document.removeEventListener('pointercancel', onPointerUp);
-    // remove listeners from window
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('pointerup', onPointerUp);
-    window.removeEventListener('pointercancel', onPointerUp);
-    if (floatingEl && floatingEl.parentNode) floatingEl.parentNode.removeChild(floatingEl);
+    // Restore scrolling and selection
+    document.body.style.touchAction = '';
+    document.body.style.userSelect = '';
+    
+    // Remove listeners from window (use { passive: false } to match how they were added)
+    window.removeEventListener('pointermove', onPointerMove, { passive: false });
+    window.removeEventListener('pointerup', onPointerUp, { passive: false });
+    window.removeEventListener('pointercancel', onPointerUp, { passive: false });
+    
+    // Clean up floating element
+    if (floatingEl && floatingEl.parentNode) {
+        floatingEl.parentNode.removeChild(floatingEl);
+    }
     floatingEl = null;
+    
+    // Remove dragging class from all tiles
+    tileElements.forEach(tile => tile.classList.remove('dragging'));
     draggingIndex = null;
-    renderLetterTiles();
 }
 
 
@@ -858,8 +941,14 @@ function updateGameUI() {
     document.getElementById('solutionCount').textContent = gameState.solutions.length;
     const guessList = document.getElementById('guessList');
     if (!gameOfDayState.active) {
-        guessList.innerHTML = '';
+        // Properly clear all child nodes to ensure cleanup
+        while (guessList && guessList.firstChild) {
+            guessList.removeChild(guessList.firstChild);
+        }
     }
+    // Reset tile cache when starting new game
+    tileElements = [];
+    draggingIndex = null;
     const correctSection = document.getElementById('correctSection');
     if (gameState.found.size > 0 || guessList.children.length > 0) {
         correctSection.classList.remove('hidden');
@@ -941,16 +1030,19 @@ function fireConfetti(){
 
 function triggerShake(className) {
     const elements = document.getElementsByClassName(className);
-    if (!elements) return;
+    if (!elements || elements.length === 0) return;
     for (const el of elements) {
+        // Remove any existing animationend listeners by cloning the node
         el.classList.remove("shake");
         // trigger reflow to restart animation
         void el.offsetWidth;
         el.classList.add("shake");
 
-        el.addEventListener("animationend", () => {
+        // Use a named function so we can properly remove it if needed
+        const removeShake = () => {
             el.classList.remove("shake");
-        }, { once: true });
+        };
+        el.addEventListener("animationend", removeShake, { once: true });
     }
 }
 
@@ -965,7 +1057,11 @@ function getRelativeCoordinatesOnScreen(elementName) {
 }
 
 // hook up game controls once DOM ready
+let gameControlsSetup = false;
 function setupGameControls() {
+    if (gameControlsSetup) return;
+    gameControlsSetup = true;
+    
     updateGameModeUI();
     const guessInput = document.getElementById('guessInput');
     if (guessInput) {
@@ -988,7 +1084,10 @@ function setupGameControls() {
             maybeApplySkipPenalty();
             if (!gameOfDayState.active) {
                 const list = document.getElementById('guessList');
-                list.innerHTML = '';
+                // Properly clear old nodes
+                while (list.firstChild) {
+                    list.removeChild(list.firstChild);
+                }
                 gameState.solutions.forEach(w => {
                     const kind = gameState.found.has(w) ? 'correct' : 'missed';
                     addWordToGuessList(w, kind);
