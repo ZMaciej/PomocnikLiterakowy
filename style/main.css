@@ -233,11 +233,11 @@ label { display: block; margin-bottom: 0.5rem; }
 }
 
 .chosen {
-  color: #ffffff;
-  border: 1px solid #219925;
+  color: var(--tile-green-border);
+  border: 1px solid var(--tile-green-border);
+  background: var(--tile-green);
   border-radius: 5px;
   padding: 0.4rem 0.7rem;
-  background: #84df87;
 }
 
 #possibleCount {
