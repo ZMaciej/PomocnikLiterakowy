@@ -754,12 +754,21 @@ async function newGame(wordData, count) {
 
 function renderLetterTiles() {
     const display = document.getElementById('letterDisplay');
+    const literakiData = new LiterakiData();
     display.innerHTML = '';
     gameState.letters.split('').forEach((ch, idx) => {
         const span = document.createElement('span');
         span.className = 'letter-tile';
         if (draggingIndex === idx) span.classList.add('dragging');
         span.textContent = ch.toUpperCase();
+        points = literakiData.getLetterPoint(ch);
+        switch (points) {
+            case 1: span.classList.add('yellow-letter'); break;
+            case 2: span.classList.add('green-letter'); break;
+            case 3: span.classList.add('blue-letter'); break;
+            case 5: span.classList.add('red-letter'); break;
+            default: break; // no special class for 0 points (e.g. wildcard)
+        }
         span.dataset.index = idx;
         // start manual drag via pointer
         span.addEventListener('pointerdown', tilePointerDown);

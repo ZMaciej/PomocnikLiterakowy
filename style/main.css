@@ -1,3 +1,26 @@
+:root {
+    --tile-yellow: #fff67e;
+    --tile-yellow-border: #c4b700;
+    --tile-green: #7eff9f;
+    --tile-green-border: #1fa741;
+    --tile-blue: #8ac1ff;
+    --tile-blue-border: #1f63b1;
+    --tile-red: #ff9c88;
+    --tile-red-border: #b93f26;
+}
+
+/* od Eweli */
+/* :root {
+    --tile-yellow: #fff34f;
+    --tile-yellow-border: #dfd87e;
+    --tile-green: #6bed8b;
+    --tile-green-border: #34c759;
+    --tile-blue: #459cff;
+    --tile-blue-border: #236cbf;
+    --tile-red: #F17861;
+    --tile-red-border: #CF604B;
+} */
+
 body {
     font-family: 'Poppins', sans-serif;
     margin: 2rem;
@@ -92,9 +115,28 @@ label { display: block; margin-bottom: 0.5rem; }
     border-radius: 4px;
 }
 
-.red-letter {
-    background-color: #F17861;
-    border: 1px solid #CF604B;
+#letterDisplay {
+    display: flex;
+    flex-direction: row;
+}
+.letter-tile.yellow-letter {
+    background-color: var(--tile-yellow);
+    border: 1px solid var(--tile-yellow-border);
+}
+
+.letter-tile.green-letter {
+    background-color: var(--tile-green);
+    border: 1px solid var(--tile-green-border);
+}
+
+.letter-tile.blue-letter {
+    background-color: var(--tile-blue);
+    border: 1px solid var(--tile-blue-border);
+}
+
+.letter-tile.red-letter {
+    background-color: var(--tile-red);
+    border: 1px solid var(--tile-red-border);
 }
 
 /* interactive letter tiles for game (pointer drag) */
@@ -192,7 +234,7 @@ label { display: block; margin-bottom: 0.5rem; }
 
 .chosen {
   color: #ffffff;
-  border: 1px solid #7c7c7c;
+  border: 1px solid #219925;
   border-radius: 5px;
   padding: 0.4rem 0.7rem;
   background: #84df87;
