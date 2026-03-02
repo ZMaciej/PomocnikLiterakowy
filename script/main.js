@@ -151,7 +151,6 @@ function setupNavigation() {
 
 // --- end routing support -----------------------------------------------------
 
-
 async function loadWordSet() {
     console.log('loadWordSet starting');
 
@@ -159,19 +158,9 @@ async function loadWordSet() {
     if (useMockData) {
         updateStatus('Wczytywanie mockowego słownika');
         updateLoadingProgress(100);
-        // make a short delay so UI still has a chance to render status
-        await new Promise(r => setTimeout(r, 50));
+        // delay
+        // await new Promise(r => setTimeout(r, 50));
         return createMockWordData();
-    }
-
-    function buildLengthKeys(map) {
-        const lengthKeys = {};
-        for (const key of Object.keys(map)) {
-            const len = key.length;
-            if (!lengthKeys[len]) lengthKeys[len] = [];
-            lengthKeys[len].push(key);
-        }
-        return lengthKeys;
     }
 
     // fetch text file from same directory; make sure slowa.txt is available
@@ -222,7 +211,7 @@ async function loadWordSet() {
     
     updateStatus('Przetwarzanie słownika...');
     updateLoadingProgress(50);
-    await new Promise(r => setTimeout(r, 300));
+    // await new Promise(r => setTimeout(r, 300));
     
     // build a dictionary mapping sorted letter sequences to word lists
     const map = {};
@@ -236,7 +225,7 @@ async function loadWordSet() {
 
     updateStatus('Optymalizowanie wyszukiwania...');
     updateLoadingProgress(75);
-    await new Promise(r => setTimeout(r, 300));
+    // await new Promise(r => setTimeout(r, 300));
     
     // build length index to speed up game selection
     function buildLengthKeys(map) {
@@ -294,7 +283,6 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
-
 
 // Polish characters for wildcard expansion
 const POLISH_CHARS = ['a', 'ą', 'b', 'c', 'ć', 'd', 'e', 'ę', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'ł', 'm', 'n', 'ń', 'o', 'ó', 'p', 'r', 's', 'ś', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'ź', 'ż'];
@@ -1340,6 +1328,78 @@ async function getWordsListWithXVowels(vowelCount, wordLength) {
     }
     return matchingWords;
 }
+
+async function convertWordSetToProcessedData() {
+    console.log('loadWordSet starting');
+
+    // fetch text file from same directory; make sure slowa.txt is available
+    const resp = await fetch('slowa.txt');
+    if (!resp.ok) {
+        updateStatus('Nie udało się wczytać listy słów.');
+        throw new Error('Unable to fetch word list');
+    }
+
+    const reader = resp.body.getReader();
+    let received = 0;
+    let chunks = [];
+    var start = new Date().getTime();
+    while (true) {
+        var now = new Date().getTime();
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        timePassed = (now - start) / 1000;
+        updateLoadingProgress(20);
+        updateStatus(`Pobieranie listy słów... (${timePassed}s)`);
+    }
+
+    const decoder = new TextDecoder();
+    // combine chunks into single Uint8Array
+    let totalLen = 0;
+    for (const c of chunks) totalLen += c.length;
+    const combined = new Uint8Array(totalLen);
+    let offset = 0;
+    for (const c of chunks) {
+        combined.set(c, offset);
+        offset += c.length;
+    }
+    const text = decoder.decode(combined);
+
+    // sanity check
+    if (!text || !text.trim()) {
+        console.error('Fetched file text is empty');
+        throw new Error('Word list file appears empty');
+    }
+
+    const words = text.split(/\r?\n/).filter(Boolean);
+    console.log('loaded', words.length, 'words');
+    
+    // build a dictionary mapping sorted letter sequences to word lists
+
+    const wordsArray = new Array();
+    const anagramMap = new Map();
+    let indexOfWord = 0;
+    for (const w of words) {
+        wordsArray.push(w);
+        const key = w.split('').sort().join('');
+        if (!anagramMap.has(key)) anagramMap.set(key, []);
+        anagramMap.get(key).push(indexOfWord);
+        indexOfWord++;
+    }
+
+    const lengthKeys = {};
+    let indexOfKeyInMap = 0;
+    for (const key of anagramMap.keys()) {
+        const len = key.length;
+        if (!lengthKeys[len]) lengthKeys[len] = [];
+        lengthKeys[len].push(indexOfKeyInMap);
+        indexOfKeyInMap++;
+    }
+    return {wordsArray, anagramMap, lengthKeys};
+}
+
+
 
 // TODO:
 // - karta ze statystykami: 
