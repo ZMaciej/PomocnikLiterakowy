@@ -11,6 +11,18 @@ body {
   align-items: center;
 }
 
+button {
+    font-family: 'Poppins', sans-serif;
+    background-color: #f0f0f0;
+    border: 1px solid #333;
+    border-radius: 4px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    cursor: pointer;
+    padding: 1.5px 7px;
+}
+
 nav { margin-bottom: 1.5rem; }
 nav button { margin-right: 0.5rem; }
 .page-section { margin-top: 1rem; }
@@ -181,10 +193,8 @@ label { display: block; margin-bottom: 0.5rem; }
 .chosen {
   color: #ffffff;
   border: 1px solid #7c7c7c;
-  border-radius: 3px;
-  padding: 0.4rem;
-  padding-left: 0.6rem;
-  padding-right: 0.6rem;
+  border-radius: 5px;
+  padding: 0.4rem 0.7rem;
   background: #84df87;
 }
 
