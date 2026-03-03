@@ -15,13 +15,13 @@
     <script src="https://cdn.jsdelivr.net/npm/@tsparticles/confetti@3.0.3/tsparticles.confetti.bundle.min.js"></script>
 </head>
 <body>
-    <div id="header-panel">
+    <div id="header-panel" style="width: 100%;">
         <div id="started-game-controls" class="hidden">
             <span id="timer-value">00:00</span>
             <button id="stop-game">🛑</button>
         </div>
         <button id="game-of-the-day" class="hidden">gra dnia</button>
-        <h3>Pomocnik Literakowy</h3>
+        <span id="title">Pomocnik Literakowy</span>
         <div id="points-panel" class="hidden">
             <span id="recent-difference">0</span>
             <span id="points">0</span>
@@ -44,8 +44,8 @@
 
     <section id="check-section" class="page-section" style="display:none;">
         <input type="text" id="input-text" placeholder="Wprowadź litery...">
-        <div id="output"></div>
-        <small style="font-size: 0.6rem; display:block; margin-top:0.5rem;">Hint: blanki reprezentowane są poprzez znak zapytania "?".</small>
+        <div id="output" style="min-width: 17rem;"></div>
+        <small style="font-size: 0.6rem; display:block; margin-top:0.5rem;">Hint: Blank = "?".</small>
     </section>
 
     <section id="game-section" class="page-section" style="display:none;">
