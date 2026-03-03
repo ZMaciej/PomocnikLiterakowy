@@ -44,6 +44,7 @@ button {
     display: inline-block;
     cursor: pointer;
     padding: 1.5px 7px;
+    color: black;
 }
 
 nav { margin-bottom: 1.5rem; }
@@ -74,11 +75,13 @@ label { display: block; margin-bottom: 0.5rem; }
 
 /* frame around correct answers */
 #correctSection {
-    border: 1px solid #7c7c7c;
+    border: 1px solid #000000;
+    margin-top: 0.5rem;
     padding-left: 5rem;
     padding-right: 5rem;
     border-radius: 4px;
     background: #f9f9f9;
+    width: 7.5rem;
 }
 #correctSection.hidden {
     display: none;
@@ -119,7 +122,11 @@ label { display: block; margin-bottom: 0.5rem; }
     display: flex;
     flex-direction: row;
     justify-content: center;
+    width: 100%;
+    padding-top: 1rem;
+    padding-bottom: 0rem;
 }
+
 .letter-tile.yellow-letter {
     background-color: var(--tile-yellow);
     border: 1px solid var(--tile-yellow-border);
@@ -201,14 +208,6 @@ label { display: block; margin-bottom: 0.5rem; }
   'opsz' 24
 }
 
-#letterDisplay {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  padding-bottom: 1rem;
-  padding-top: 1rem;
-}
-
 #mix {
   display: flex;
   flex-direction: column;
@@ -242,8 +241,20 @@ label { display: block; margin-bottom: 0.5rem; }
 }
 
 #possibleCount {
-  margin-top: 0.5rem;
-  font-size: small;
+  font-size: 0.6rem;
+  align-self: flex-start;
+  margin: 0rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.2rem;
+  margin-left: 0.4rem;
+  display: flex;
+  direction: row;
+  align-items: center;
+}
+
+#solutionCount {
+  font-size: .8rem;
+  margin: 0rem 0.3rem;
 }
 
 #guessList {

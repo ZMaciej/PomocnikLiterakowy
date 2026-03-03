@@ -65,7 +65,8 @@
             </div>
         </button>
       </div>
-      <div id="letterDisplay" style="font-size:1.5rem; margin:0.5rem 0;"></div>
+      <div id="letterDisplay"></div>
+        <p id="possibleCount">Możliwych słów: <span id="solutionCount">0</span></p>
         <div class="controls">
             <button id="checkBtn">Sprawdź</button>
             <button id="shuffleBtn">
@@ -75,12 +76,11 @@
                 </div>
             </button>
         </div>
-        <p id="possibleCount">Liczba możliwych słów: <span id="solutionCount">0</span></p>
         <div id="correctSection">
             <p style="font-size:small;">Prawidłowe hasła:</p>
             <div id="guessList"></div>
         </div>
-        <button id="giveUpBtn" style="margin-top:0.5rem;">poddaję się - pokaż wszystko</button>
+        <button id="giveUpBtn" style="position: absolute; bottom: 1rem; left: 1rem;">poddaję się - pokaż wszystko</button>
     </section>
 
     <div id="game-of-day-overlay" class="hidden">

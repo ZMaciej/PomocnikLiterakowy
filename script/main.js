@@ -1046,10 +1046,11 @@ function confettiSeries() {
 }
 
 function fireConfetti(){
-    relativePosition = getRelativeCoordinatesOnScreen('correctSection');
+    relativePosition = getRelativeCoordinatesOnScreen('checkBtn');
     var defaults = {
         spread: 55,
-        colors: ['#43B243', '#DEB617', '#537AD5', '#D56253'],
+        // colors: ['#c4b700', '#1fa741', '#1f63b1', '#b93f26'],
+        colors: ['#fff67e','#7eff9f','#8ac1ff','#ff9c88'],
         startVelocity: 30,
         particleCount: 100,
     };
