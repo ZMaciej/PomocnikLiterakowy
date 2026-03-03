@@ -163,7 +163,49 @@ async function loadWordSet() {
         return createMockWordData();
     }
 
-    // fetch text file from same directory; make sure slowa.txt is available
+    // Try to fetch processed word data first
+    updateStatus('Pobieranie listy słów...');
+    updateLoadingProgress(10);
+
+    try {
+        const resp = await fetch('processedWordData.json');
+        if (resp.ok) {
+            const processedData = await resp.json();
+            console.log('loaded preprocessed data from processedWordData.json');
+            
+            updateStatus('Optymalizowanie wyszukiwania...');
+            updateLoadingProgress(75);
+            
+            // Convert processedData format to game format
+            // processedData has: {wordsArray, anagramMap, lengthKeys}
+            // We need: {set, map, lengthKeys}
+            
+            const set = new Set(processedData.wordsArray);
+            const map = {};
+            
+            // Rebuild map from anagramMap
+            for (const sortedLetters of Object.keys(processedData.anagramMap)) {
+                const wordIndices = processedData.anagramMap[sortedLetters];
+                const words = wordIndices.map(idx => processedData.wordsArray[idx]);
+                map[sortedLetters] = words;
+            }
+            
+            // Rebuild lengthKeys to point to sorted letter keys instead of indices
+            const lengthKeysNew = {};
+            for (const sortedLetters of Object.keys(processedData.anagramMap)) {
+                const len = sortedLetters.length;
+                if (!lengthKeysNew[len]) lengthKeysNew[len] = [];
+                lengthKeysNew[len].push(sortedLetters);
+            }
+            
+            updateLoadingProgress(100);
+            return {set, map, lengthKeys: lengthKeysNew};
+        }
+    } catch (err) {
+        console.log('Could not load processedWordData.json, falling back to slowa.txt', err);
+    }
+
+    // Fallback: fetch and process text file
     updateStatus('Pobieranie listy słów...');
     updateLoadingProgress(0);
 
@@ -1049,7 +1091,6 @@ function fireConfetti(){
     relativePosition = getRelativeCoordinatesOnScreen('checkBtn');
     var defaults = {
         spread: 55,
-        // colors: ['#c4b700', '#1fa741', '#1f63b1', '#b93f26'],
         colors: ['#fff67e','#7eff9f','#8ac1ff','#ff9c88'],
         startVelocity: 30,
         particleCount: 100,
@@ -1424,19 +1465,19 @@ async function convertWordSetToProcessedData() {
     // build a dictionary mapping sorted letter sequences to word lists
 
     const wordsArray = new Array();
-    const anagramMap = new Map();
+    const anagramMap = {};
     let indexOfWord = 0;
     for (const w of words) {
         wordsArray.push(w);
         const key = w.split('').sort().join('');
-        if (!anagramMap.has(key)) anagramMap.set(key, []);
-        anagramMap.get(key).push(indexOfWord);
+        if (!anagramMap[key]) anagramMap[key] = [];
+        anagramMap[key].push(indexOfWord);
         indexOfWord++;
     }
 
     const lengthKeys = {};
     let indexOfKeyInMap = 0;
-    for (const key of anagramMap.keys()) {
+    for (const key of Object.keys(anagramMap)) {
         const len = key.length;
         if (!lengthKeys[len]) lengthKeys[len] = [];
         lengthKeys[len].push(indexOfKeyInMap);
@@ -1445,7 +1486,29 @@ async function convertWordSetToProcessedData() {
     return {wordsArray, anagramMap, lengthKeys};
 }
 
-
+async function saveProcessedDataToLocalStorage() {
+    // This function downloads the processed word data as a JSON file to the user's computer.
+    // request of downloading the file should be triggered manually from console to avoid blocking the main thread during normal gameplay
+    try {
+        const processedData = await convertWordSetToProcessedData();
+        const jsonString = JSON.stringify(processedData);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'processedWordData.json';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 100);
+        console.log('Processed data download started');
+    } catch (e) {
+        console.error('Error processing and saving word data', e);
+    }
+}
 
 // TODO:
 // - karta ze statystykami: 
