@@ -42,7 +42,7 @@ window.setMockMode = function(enable) {
 
 // ------------------------------------------------------------------------
 
-const input = document.getElementById('inputText');
+const input = document.getElementById('input-text');
 const output = document.getElementById('output');
 const statusEl = document.getElementById('statusText');
 
@@ -84,7 +84,7 @@ function updateStatus(msg) {
     const alt = document.getElementById('statusTextGame');
     if (alt) alt.textContent = msg;
     // also update loading screen status if visible
-    const loading = document.getElementById('loadingStatus');
+    const loading = document.getElementById('loading-status');
     if (loading) loading.textContent = msg;
 }
 
@@ -96,7 +96,7 @@ function hideLoadingScreen() {
 }
 
 function updateLoadingProgress(percent) {
-    const prog = document.getElementById('loadingProgress');
+    const prog = document.getElementById('loading-progress');
     const pageProgress = document.getElementById('progress');
     if (prog) prog.value = percent;
     if (pageProgress) pageProgress.value = percent;
@@ -508,7 +508,7 @@ function updateGameModeUI() {
     const isOnGameSection = gameSection ? gameSection.style.display !== 'none' : false;
     const timerValue = document.getElementById('timer-value');
     const pointsValue = document.getElementById('points');
-    const countButtons = document.querySelectorAll('#letterCountButtons button');
+    const countButtons = document.querySelectorAll('#letter-count-button button');
 
     if (startedControls) startedControls.classList.toggle('hidden', !gameOfDayState.active || !isOnGameSection);
     if (pointsPanel) pointsPanel.classList.toggle('hidden', !isOnGameSection);
@@ -568,7 +568,7 @@ function updateScore(delta) {
 }
 
 function addWordToGuessList(word, kind) {
-    const guessList = document.getElementById('guessList');
+    const guessList = document.getElementById('guess-list');
     if (!guessList) return;
 
     // try to update existing entry from the current round instead of duplicating
@@ -611,7 +611,7 @@ function addWordToGuessList(word, kind) {
 }
 
 function addRoundSeparator() {
-    const guessList = document.getElementById('guessList');
+    const guessList = document.getElementById('guess-list');
     if (!guessList) return;
     const separator = document.createElement('div');
     separator.classList.add('guess-separator');
@@ -710,7 +710,7 @@ function startGameOfDayTimer() {
 async function startGameOfDay() {
     hideGameOfDayResultOverlay();
     // Clear the guesses list at the start of game of day
-    const guessList = document.getElementById('guessList');
+    const guessList = document.getElementById('guess-list');
     if (guessList) {
         while (guessList.firstChild) {
             guessList.removeChild(guessList.firstChild);
@@ -744,7 +744,7 @@ async function newGame(wordData, count) {
     gameState.count = count;
     gameState.roundNumber += 1;
     if (gameOfDayState.active) {
-        const guessList = document.getElementById('guessList');
+        const guessList = document.getElementById('guess-list');
         if (guessList && guessList.children.length > 0) {
             addRoundSeparator();
         }
@@ -759,8 +759,8 @@ async function newGame(wordData, count) {
     const keys = (wordData.lengthKeys && wordData.lengthKeys[count]) ? wordData.lengthKeys[count] :
                   Object.keys(wordData.map).filter(k => k.length === count);
     if (!keys || keys.length === 0) {
-        document.getElementById('letterDisplay').textContent = 'Brak słów o takiej długości';
-        document.getElementById('solutionCount').textContent = '0';
+        document.getElementById('letter-display').textContent = 'Brak słów o takiej długości';
+        document.getElementById('solution-count').textContent = '0';
         gameState.letters = '';
         gameState.solutions = [];
         gameState.found.clear();
@@ -768,7 +768,7 @@ async function newGame(wordData, count) {
         gameState.skipPenaltyApplied = false;
         gameState.roundRevealed = false;
         if (!gameOfDayState.active) {
-            const list = document.getElementById('guessList');
+            const list = document.getElementById('guess-list');
             if (list) {
                 while (list.firstChild) {
                     list.removeChild(list.firstChild);
@@ -793,7 +793,7 @@ async function newGame(wordData, count) {
 }
 
 function renderLetterTiles() {
-    const display = document.getElementById('letterDisplay');
+    const display = document.getElementById('letter-display');
     const literakiData = new LiterakiData();
     
     // Only full rerender if tile count changed or tiles were never created
@@ -971,8 +971,8 @@ function onPointerUp(e) {
 
 function updateGameUI() {
     // original textual display replaced by interactive tiles (pointer drag)
-    document.getElementById('solutionCount').textContent = gameState.solutions.length;
-    const guessList = document.getElementById('guessList');
+    document.getElementById('solution-count').textContent = gameState.solutions.length;
+    const guessList = document.getElementById('guess-list');
     if (!gameOfDayState.active) {
         // Properly clear all child nodes to ensure cleanup
         while (guessList && guessList.firstChild) {
@@ -982,7 +982,7 @@ function updateGameUI() {
     // Reset tile cache when starting new game
     tileElements = [];
     draggingIndex = null;
-    const correctSection = document.getElementById('correctSection');
+    const correctSection = document.getElementById('correct-section');
     if (gameState.found.size > 0 || guessList.children.length > 0) {
         correctSection.classList.remove('hidden');
     } else {
@@ -1013,7 +1013,7 @@ async function handleGuess(guess) {
         }
         addWordToGuessList(normalized, 'correct');
         // keep the input text so player can continue editing
-        const correctSection = document.getElementById('correctSection');
+        const correctSection = document.getElementById('correct-section');
         if (gameState.found.size > 0) {
             correctSection.classList.remove('hidden');
         } else {
@@ -1046,7 +1046,7 @@ function confettiSeries() {
 }
 
 function fireConfetti(){
-    relativePosition = getRelativeCoordinatesOnScreen('checkBtn');
+    relativePosition = getRelativeCoordinatesOnScreen('check-button');
     var defaults = {
         spread: 55,
         // colors: ['#c4b700', '#1fa741', '#1f63b1', '#b93f26'],
@@ -1110,18 +1110,18 @@ function setupGameControls() {
         // hide text input when pointer drag interface is available
         guessInput.style.display = 'none';
     }
-    const checkBtn = document.getElementById('checkBtn');
-    if (checkBtn) {
-        checkBtn.addEventListener('click', () => {
+    const checkButton = document.getElementById('check-button');
+    if (checkButton) {
+        checkButton.addEventListener('click', () => {
             handleGuess(gameState.letters);
         });
     }
-    const giveUp = document.getElementById('giveUpBtn');
+    const giveUp = document.getElementById('give-up-button');
     if (giveUp) {
         giveUp.addEventListener('click', () => {
             maybeApplySkipPenalty();
             if (!gameOfDayState.active) {
-                const list = document.getElementById('guessList');
+                const list = document.getElementById('guess-list');
                 // Properly clear old nodes
                 while (list.firstChild) {
                     list.removeChild(list.firstChild);
@@ -1135,13 +1135,13 @@ function setupGameControls() {
             } else {
                 revealMissedWordsFromCurrentRound();
             }
-            const correctSection = document.getElementById('correctSection');
+            const correctSection = document.getElementById('correct-section');
             correctSection.classList.remove('hidden');
         });
     }
-    const nextBtn = document.getElementById('nextBtn');
-    if (nextBtn) {
-        nextBtn.addEventListener('click', async () => {
+    const nextButton = document.getElementById('next-button');
+    if (nextButton) {
+        nextButton.addEventListener('click', async () => {
             maybeApplySkipPenalty();
             if (gameOfDayState.active) {
                 revealMissedWordsFromCurrentRound();
@@ -1155,9 +1155,9 @@ function setupGameControls() {
             }
         });
     }
-    const shuffleBtn = document.getElementById('shuffleBtn');
-    if (shuffleBtn) {
-        shuffleBtn.addEventListener('click', () => {
+    const shuffleButton = document.getElementById('shuffle-button');
+    if (shuffleButton) {
+        shuffleButton.addEventListener('click', () => {
             // reshuffle current letters order without clearing user's guess
             if (gameState.letters) {
                 gameState.letters = shuffleArray(gameState.letters.split(''), randomControl.mixRng).join('');
@@ -1192,29 +1192,29 @@ function setupGameControls() {
         });
     }
 
-    const btn6Count = document.getElementById('Btn6');
-    const btn7Count = document.getElementById('Btn7');
-    const btn8Count = document.getElementById('Btn8');
-    const btn9Count = document.getElementById('Btn9');
-    let countButtons = [btn6Count, btn7Count, btn8Count, btn9Count];
-    if (btn6Count) {
-        btn6Count.addEventListener('click', () => {
-            handleCountSelect(6, btn6Count, countButtons);
+    const button6 = document.getElementById('button-6');
+    const button7 = document.getElementById('button-7');
+    const button8 = document.getElementById('button-8');
+    const button9 = document.getElementById('button-9');
+    let countButtons = [button6, button7, button8, button9];
+    if (button6) {
+        button6.addEventListener('click', () => {
+            handleCountSelect(6, button6, countButtons);
         });
     }
-    if (btn7Count) {
-        btn7Count.addEventListener('click', () => {
-            handleCountSelect(7, btn7Count, countButtons);
+    if (button7) {
+        button7.addEventListener('click', () => {
+            handleCountSelect(7, button7, countButtons);
         });
     }
-    if (btn8Count) {
-        btn8Count.addEventListener('click', () => {
-            handleCountSelect(8, btn8Count, countButtons);
+    if (button8) {
+        button8.addEventListener('click', () => {
+            handleCountSelect(8, button8, countButtons);
         });
     }
-    if (btn9Count) {
-        btn9Count.addEventListener('click', () => {
-            handleCountSelect(9, btn9Count, countButtons);
+    if (button9) {
+        button9.addEventListener('click', () => {
+            handleCountSelect(9, button9, countButtons);
         });
     }
 }

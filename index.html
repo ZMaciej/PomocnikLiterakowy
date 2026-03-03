@@ -16,16 +16,16 @@
 </head>
 <body>
     <div id="header-panel">
-            <div id="started-game-controls" class="hidden">
-        <span id="timer-value">00:00</span>
-        <button id="stop-game">🛑</button>
-      </div>
-      <button id="game-of-the-day" class="hidden">gra dnia</button>
-      <h3>Pomocnik Literakowy</h3>
+        <div id="started-game-controls" class="hidden">
+            <span id="timer-value">00:00</span>
+            <button id="stop-game">🛑</button>
+        </div>
+        <button id="game-of-the-day" class="hidden">gra dnia</button>
+        <h3>Pomocnik Literakowy</h3>
         <div id="points-panel" class="hidden">
-          <span id="recent-difference">0</span>
-          <span id="points">0</span>
-      </div>
+            <span id="recent-difference">0</span>
+            <span id="points">0</span>
+        </div>
     </div>
 
     <nav>
@@ -36,51 +36,50 @@
     <!-- loading overlay shown during initial dictionary load -->
     <div id="loading-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999;">
         <h2>Wczytywanie słownika...</h2>
-        <progress id="loadingProgress" max="100" value="0" style="width:300px; margin:1rem 0;"></progress>
-        <p id="loadingStatus">Sprawdzanie pamięci podręcznej...</p>
+        <progress id="loading-progress" max="100" value="0" style="width:300px; margin:1rem 0;"></progress>
+        <p id="loading-status">Sprawdzanie pamięci podręcznej...</p>
     </div>
 
     <!-- sekcje ukrywane/pokazywane przez JS -->
 
     <section id="check-section" class="page-section" style="display:none;">
-        <!-- treść z poprzedniej czy-istnieje-slowo.html -->
-        <small style="display:block; margin-bottom:0.5rem;">Hint: blanki reprezentowane są poprzez znak zapytania "?".</small>
-        <input type="text" id="inputText" placeholder="Wprowadź litery...">
+        <input type="text" id="input-text" placeholder="Wprowadź litery...">
         <div id="output"></div>
+        <small style="font-size: 0.6rem; display:block; margin-top:0.5rem;">Hint: blanki reprezentowane są poprzez znak zapytania "?".</small>
     </section>
 
     <section id="game-section" class="page-section" style="display:none;">
       <div class="controls">
-        <div id="letterCountButtons" style="display:inline-block; margin-left:0.5rem;">
+        <div id="letter-count-button" style="display:inline-block; margin-left:0.5rem;">
             Liczba liter:
-            <button id="Btn6">6</button>
-            <button class="chosen" id="Btn7">7</button>
-            <button id="Btn8">8</button>
-            <button id="Btn9">9</button>
+            <button id="button-6">6</button>
+            <button class="chosen" id="button-7">7</button>
+            <button id="button-8">8</button>
+            <button id="button-9">9</button>
         </div>
-        <button id="nextBtn">
+        <button id="next-button">
             <div id="next">
                 <span class="material-symbols-outlined">arrow_forward</span>
                 next
             </div>
         </button>
       </div>
-      <div id="letterDisplay"></div>
-        <p id="possibleCount">Możliwych słów: <span id="solutionCount">0</span></p>
+      <div id="letter-display"></div>
+        <p id="possible-count">Możliwych słów: <span id="solution-count">0</span></p>
         <div class="controls">
-            <button id="checkBtn">Sprawdź</button>
-            <button id="shuffleBtn">
+            <button id="check-button">Sprawdź</button>
+            <button id="shuffle-button">
                 <div id="mix">
                     <span class="material-symbols-outlined">refresh</span>
                     mixuj
                 </div>
             </button>
         </div>
-        <div id="correctSection">
+        <div id="correct-section">
             <p style="font-size:small;">Prawidłowe hasła:</p>
-            <div id="guessList"></div>
+            <div id="guess-list"></div>
         </div>
-        <button id="giveUpBtn" style="position: fixed; bottom: 1rem; left: 1rem;">poddaję się - pokaż wszystko</button>
+        <button id="give-up-button" style="position: fixed; bottom: 1rem; left: 1rem;">poddaję się - pokaż wszystko</button>
     </section>
 
     <div id="game-of-day-overlay" class="hidden">

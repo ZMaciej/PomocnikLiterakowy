@@ -74,7 +74,7 @@ label { display: block; margin-bottom: 0.5rem; }
 }
 
 /* frame around correct answers */
-#correctSection {
+#correct-section {
     border: 1px solid #000000;
     margin-top: 0.5rem;
     padding-left: 5rem;
@@ -83,7 +83,7 @@ label { display: block; margin-bottom: 0.5rem; }
     background: #f9f9f9;
     width: 7.5rem;
 }
-#correctSection.hidden {
+#correct-section.hidden {
     display: none;
 }
 
@@ -97,7 +97,7 @@ label { display: block; margin-bottom: 0.5rem; }
     margin-bottom: 1rem;
 }
 
-#loadingProgress {
+#loading-progress {
     height: 24px;
     width: 100%;
     appearance: none;
@@ -107,18 +107,18 @@ label { display: block; margin-bottom: 0.5rem; }
 }
 
 /* Chrome/Safari progress bar */
-#loadingProgress::-webkit-progress-bar {
+#loading-progress::-webkit-progress-bar {
     background-color: #f0f0f0;
     border-radius: 4px;
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-#loadingProgress::-webkit-progress-value {
+#loading-progress::-webkit-progress-value {
     background: linear-gradient(90deg, #4CAF50, #45a049);
     border-radius: 4px;
 }
 
-#letterDisplay {
+#letter-display {
     display: flex;
     flex-direction: row;
     justify-content: center;
@@ -196,7 +196,7 @@ label { display: block; margin-bottom: 0.5rem; }
 }
 
 /* Firefox progress bar */
-#loadingProgress::-moz-progress-bar {
+#loading-progress::-moz-progress-bar {
     background: linear-gradient(90deg, #4CAF50, #45a049);
     border-radius: 4px;
 }
@@ -212,7 +212,7 @@ label { display: block; margin-bottom: 0.5rem; }
   display: flex;
   flex-direction: column;
 }
-#nextBtn{
+#next-button{
   margin-left: 1.2rem;
 }
 #next {
@@ -220,7 +220,7 @@ label { display: block; margin-bottom: 0.5rem; }
   flex-direction: column;
 }
 
-#checkBtn {
+#check-button {
   align-self: stretch;
   width: 14rem;
   margin-right: 0.4rem;
@@ -240,7 +240,7 @@ label { display: block; margin-bottom: 0.5rem; }
   padding: 0.4rem 0.7rem;
 }
 
-#possibleCount {
+#possible-count {
   font-size: 0.6rem;
   align-self: flex-start;
   margin: 0rem;
@@ -252,12 +252,12 @@ label { display: block; margin-bottom: 0.5rem; }
   align-items: center;
 }
 
-#solutionCount {
+#solution-count {
   font-size: .8rem;
   margin: 0rem 0.3rem;
 }
 
-#guessList {
+#guess-list {
   display: flex;
   flex-wrap: wrap;
   flex-direction: column-reverse;
