@@ -118,6 +118,7 @@ label { display: block; margin-bottom: 0.5rem; }
 #letterDisplay {
     display: flex;
     flex-direction: row;
+    justify-content: center;
 }
 .letter-tile.yellow-letter {
     background-color: var(--tile-yellow);

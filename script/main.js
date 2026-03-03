@@ -455,6 +455,7 @@ let gameState = {
     letters: '',
     solutions: [],
     found: new Set(),
+    revealedAfterGiveUp: new Set(),
     count: 7,
     skipPenaltyApplied: false,
     roundNumber: 0,
@@ -469,6 +470,8 @@ let gameOfDayState = {
     allSolutions: [],
     allFound: new Set()
 };
+
+let normalGameScore = 0;
 
 function shuffleArray(arr, rng) {
     const randomInt = rng ? max => rng.int(max) : max => Math.floor(Math.random() * max);
@@ -501,12 +504,14 @@ function updateGameModeUI() {
     const startedControls = document.getElementById('started-game-controls');
     const pointsPanel = document.getElementById('points-panel');
     const gameOfDayBtn = document.getElementById('game-of-the-day');
+    const gameSection = document.getElementById('game-section');
+    const isOnGameSection = gameSection ? gameSection.style.display !== 'none' : false;
     const timerValue = document.getElementById('timer-value');
     const pointsValue = document.getElementById('points');
     const countButtons = document.querySelectorAll('#letterCountButtons button');
 
-    if (startedControls) startedControls.classList.toggle('hidden', !gameOfDayState.active);
-    if (pointsPanel) pointsPanel.classList.toggle('hidden', !gameOfDayState.active);
+    if (startedControls) startedControls.classList.toggle('hidden', !gameOfDayState.active || !isOnGameSection);
+    if (pointsPanel) pointsPanel.classList.toggle('hidden', !isOnGameSection);
     countButtons.forEach(btn => btn.disabled = gameOfDayState.active);
 
     if (timerValue) {
@@ -515,12 +520,10 @@ function updateGameModeUI() {
             : '00:00';
     }
     if (pointsValue) {
-        pointsValue.textContent = String(gameOfDayState.active ? gameOfDayState.score : 0);
+        pointsValue.textContent = String(gameOfDayState.active ? gameOfDayState.score : normalGameScore);
     }
 
     if (gameOfDayBtn) {
-        const gameSection = document.getElementById('game-section');
-        const isOnGameSection = gameSection ? gameSection.style.display !== 'none' : false;
         gameOfDayBtn.textContent = 'gra dnia';
         gameOfDayBtn.disabled = false;
         if (gameOfDayState.active || !isOnGameSection) {
@@ -536,6 +539,11 @@ function updateGameModeUI() {
 function showRecentDiff(delta) {
     const recentDiffEl = document.getElementById('recent-difference');
     if (!recentDiffEl) return;
+    if (delta === 0) {
+        recentDiffEl.textContent = '';
+        recentDiffEl.classList.remove('green', 'red');
+        return;
+    }
     const prefix = delta > 0 ? '+' : '';
     recentDiffEl.textContent = `${prefix}${delta}`;
     recentDiffEl.classList.remove('green', 'red');
@@ -547,16 +555,41 @@ function showRecentDiff(delta) {
 }
 
 function updateScore(delta) {
-    if (!gameOfDayState.active) return;
-    gameOfDayState.score += delta;
+    if (gameOfDayState.active) {
+        gameOfDayState.score += delta;
+    } else {
+        normalGameScore += delta;
+    }
     const pointsValue = document.getElementById('points');
-    if (pointsValue) pointsValue.textContent = String(gameOfDayState.score);
+    if (pointsValue) {
+        pointsValue.textContent = String(gameOfDayState.active ? gameOfDayState.score : normalGameScore);
+    }
     showRecentDiff(delta);
 }
 
 function addWordToGuessList(word, kind) {
     const guessList = document.getElementById('guessList');
     if (!guessList) return;
+
+    // try to update existing entry from the current round instead of duplicating
+    const items = Array.from(guessList.children);
+    for (let i = items.length - 1; i >= 0; i--) {
+        const node = items[i];
+        if (node.classList && node.classList.contains('guess-separator')) break;
+        const link = node.querySelector ? node.querySelector('a') : null;
+        if (!link) continue;
+        if (link.textContent !== word) continue;
+
+        if (kind === 'correct') {
+            link.classList.remove('guess-missed');
+            link.classList.add('guess-correct');
+        } else if (kind === 'missed') {
+            if (!link.classList.contains('guess-correct')) {
+                link.classList.add('guess-missed');
+            }
+        }
+        return;
+    }
 
     const div = document.createElement('div');
     div.classList.add('guess-item');
@@ -589,12 +622,12 @@ function addRoundSeparator() {
 function revealMissedWordsFromCurrentRound() {
     if (gameState.roundRevealed) return;
     const missedWords = gameState.solutions.filter(word => !gameState.found.has(word));
+    missedWords.forEach(word => gameState.revealedAfterGiveUp.add(word));
     missedWords.forEach(word => addWordToGuessList(word, 'missed'));
     gameState.roundRevealed = true;
 }
 
 function maybeApplySkipPenalty() {
-    if (!gameOfDayState.active) return;
     if (gameState.skipPenaltyApplied) return;
     const missedCount = Math.max(0, gameState.solutions.length - gameState.found.size);
     gameState.skipPenaltyApplied = true;
@@ -676,6 +709,13 @@ function startGameOfDayTimer() {
 
 async function startGameOfDay() {
     hideGameOfDayResultOverlay();
+    // Clear the guesses list at the start of game of day
+    const guessList = document.getElementById('guessList');
+    if (guessList) {
+        while (guessList.firstChild) {
+            guessList.removeChild(guessList.firstChild);
+        }
+    }
     configureRandomMode('daily');
     gameOfDayState.active = true;
     gameOfDayState.score = 0;
@@ -693,7 +733,6 @@ async function startGameOfDay() {
 async function returnToNormalMode() {
     stopGameOfDayTimer();
     gameOfDayState.active = false;
-    gameOfDayState.score = 0;
     gameOfDayState.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
     hideGameOfDayResultOverlay();
     configureRandomMode('normal');
@@ -725,6 +764,7 @@ async function newGame(wordData, count) {
         gameState.letters = '';
         gameState.solutions = [];
         gameState.found.clear();
+        gameState.revealedAfterGiveUp.clear();
         gameState.skipPenaltyApplied = false;
         gameState.roundRevealed = false;
         if (!gameOfDayState.active) {
@@ -743,6 +783,7 @@ async function newGame(wordData, count) {
     gameState.letters = letters;
     gameState.solutions = solutions;
     gameState.found.clear();
+    gameState.revealedAfterGiveUp.clear();
     gameState.skipPenaltyApplied = false;
     gameState.roundRevealed = false;
     if (gameOfDayState.active) {
@@ -759,11 +800,15 @@ function renderLetterTiles() {
     const needsFullRerender = tileElements.length !== gameState.letters.length || tileElements.length === 0;
     
     if (needsFullRerender) {
-        // Clean up old tiles
+        // Clean up old tiles from DOM and cache
         tileElements.forEach(tile => {
             tile.removeEventListener('pointerdown', tilePointerDown);
-            tile.remove();
         });
+        
+        // Clear display container
+        while (display.firstChild) {
+            display.removeChild(display.firstChild);
+        }
         tileElements = [];
         
         gameState.letters.split('').forEach((ch, idx) => {
@@ -866,36 +911,40 @@ function onPointerMove(e) {
         const dst = parseInt(elem.dataset.index, 10);
         if (dst !== draggingIndex) {
             swapLetters(draggingIndex, dst);
-            // Efficiently swap visual representation without full rerender
-            if (tileElements[draggingIndex] && tileElements[dst]) {
-                swapTileElements(draggingIndex, dst);
-            }
+            // Rebuild display from gameState to ensure sync
+            rebuildTilesFromGameState(dst);
             draggingIndex = dst;
             // handleGuess(gameState.letters); // auto-check disabled, use button
         }
     }
 }
 
-function swapTileElements(i, j) {
-    if (!tileElements[i] || !tileElements[j]) return;
-    // Swap the text content and letter classes efficiently
-    const tempText = tileElements[i].textContent;
-    const tempClasses = Array.from(tileElements[i].classList);
+function rebuildTilesFromGameState(dragIdx) {
+    // Rebuild all tile displays from gameState.letters, keeping DOM nodes in place
+    if (tileElements.length !== gameState.letters.length) return; // shouldn't happen but safety check
     
-    tileElements[i].textContent = tileElements[j].textContent;
-    tileElements[i].className = tileElements[j].className;
-    
-    tileElements[j].textContent = tempText;
-    tileElements[j].className = '';
-    tempClasses.forEach(cls => tileElements[j].classList.add(cls));
-    
-    // Update indices
-    tileElements[i].dataset.index = i;
-    tileElements[j].dataset.index = j;
-    
-    // Mark current dragging tile
-    tileElements[i].classList.remove('dragging');
-    tileElements[j].classList.add('dragging');
+    const literakiData = new LiterakiData();
+    gameState.letters.split('').forEach((ch, idx) => {
+        const tile = tileElements[idx];
+        if (!tile) return;
+        
+        // Update text and styling from gameState
+        tile.textContent = ch.toUpperCase();
+        tile.dataset.index = idx;
+        
+        // Reset color classes
+        tile.classList.remove('yellow-letter', 'green-letter', 'blue-letter', 'red-letter');
+        const points = literakiData.getLetterPoint(ch);
+        switch (points) {
+            case 1: tile.classList.add('yellow-letter'); break;
+            case 2: tile.classList.add('green-letter'); break;
+            case 3: tile.classList.add('blue-letter'); break;
+            case 5: tile.classList.add('red-letter'); break;
+        }
+        
+        // Update dragging state
+        tile.classList.toggle('dragging', idx === dragIdx);
+    });
 }
 
 function onPointerUp(e) {
@@ -952,10 +1001,14 @@ function updateGameUI() {
 async function handleGuess(guess) {
     const normalized = guess.trim().toLowerCase();
     if (!normalized) return;
+    if (gameState.revealedAfterGiveUp.has(normalized)) {
+        triggerShake('letter-tile');
+        return;
+    }
     if (gameState.solutions.includes(normalized) && !gameState.found.has(normalized)) {
         gameState.found.add(normalized);
+        updateScore(50);
         if (gameOfDayState.active) {
-            updateScore(50);
             gameOfDayState.allFound.add(normalized);
         }
         addWordToGuessList(normalized, 'correct');
@@ -1074,8 +1127,10 @@ function setupGameControls() {
                 }
                 gameState.solutions.forEach(w => {
                     const kind = gameState.found.has(w) ? 'correct' : 'missed';
+                    if (kind === 'missed') gameState.revealedAfterGiveUp.add(w);
                     addWordToGuessList(w, kind);
                 });
+                gameState.roundRevealed = true;
             } else {
                 revealMissedWordsFromCurrentRound();
             }
@@ -1331,23 +1386,17 @@ async function convertWordSetToProcessedData() {
     // fetch text file from same directory; make sure slowa.txt is available
     const resp = await fetch('slowa.txt');
     if (!resp.ok) {
-        updateStatus('Nie udało się wczytać listy słów.');
         throw new Error('Unable to fetch word list');
     }
 
     const reader = resp.body.getReader();
     let received = 0;
     let chunks = [];
-    var start = new Date().getTime();
     while (true) {
-        var now = new Date().getTime();
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value);
         received += value.length;
-        timePassed = (now - start) / 1000;
-        updateLoadingProgress(20);
-        updateStatus(`Pobieranie listy słów... (${timePassed}s)`);
     }
 
     const decoder = new TextDecoder();
