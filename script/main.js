@@ -5,6 +5,7 @@
 // normally while avoiding any network i/o.
 
 let useMockData = location.search.includes('mock');
+let useKidsData = location.search.includes('kids');
 
 function createMockWordData() {
     const words = ['ma', 'ala', 'kot', 'tam', 'kota', 'flopy', 
@@ -167,7 +168,9 @@ async function loadWordSet() {
     updateStatus('Pobieranie listy słów...');
     updateLoadingProgress(0);
 
-    const resp = await fetch('slowa.txt');
+    slowaFileName = useKidsData ? 'popularneSlowa.txt' : 'slowa.txt';
+
+    const resp = await fetch(slowaFileName);
     if (!resp.ok) {
         updateStatus('Nie udało się wczytać listy słów.');
         throw new Error('Unable to fetch word list');

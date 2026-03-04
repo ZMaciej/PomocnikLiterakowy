@@ -30,7 +30,7 @@ async function loadProcessedDataFromLocalStorage() {
     }
 }
 
-async function convertWordSetToProcessedData() {
+async function downloadWordsFile() {
     console.log('loadWordSet starting');
 
     // fetch text file from same directory; make sure slowa.txt is available
@@ -69,6 +69,11 @@ async function convertWordSetToProcessedData() {
 
     const words = text.split(/\r?\n/).filter(Boolean);
     console.log('loaded', words.length, 'words');
+    return words;
+}
+
+async function convertWordSetToProcessedData() {
+    const words = await downloadWordsFile();
     
     // build a dictionary mapping sorted letter sequences to word lists
 
@@ -116,4 +121,41 @@ async function saveProcessedDataToLocalStorage() {
     } catch (e) {
         console.error('Error processing and saving word data', e);
     }
+}
+
+async function loadCsvFile(fileName) {
+    const resp = await fetch(fileName);
+    if (!resp.ok) {
+        throw new Error(`Unable to fetch CSV file: ${fileName}`);
+    }
+    const text = await resp.text();
+    const rows = text.split(/\r?\n/).filter(Boolean);
+    const data = rows.map(row => {
+        const [word, count] = row.split(',');
+        return { word, count: parseInt(count, 10) };
+    });
+    return data;
+}
+
+async function commonPartWithSjp() {
+    const topWords = await loadCsvFile('pl_top_words.csv');
+    const words = await downloadWordsFile();
+    // convert topWords to a Set for faster lookup
+    const topWordsSet = new Set(topWords.map(w => w.word));
+    // filter the original word list to only include words that are in the topWordsSet
+    const filteredWords = words.filter(w => topWordsSet.has(w));
+    console.log('Filtered words count:', filteredWords.length);
+    // save the filtered list to a new file
+    const blob = new Blob([filteredWords.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'filteredWords.txt';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 100);
 }
