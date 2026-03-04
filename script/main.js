@@ -1452,3 +1452,8 @@ async function convertWordSetToProcessedData() {
 //  - częstość liter
 //  - najczęstsze początki/końcówki dla konkretnych długości wyrazów
 //  - rozkład ilościowy stosunku spółgłosek do samogłosek w wyrazach konkretnych długości
+//
+// - customowa gra:
+//  - ustaw czas rozgrywki w minutach
+//  - liczba liter
+//  - przycisk "udostępnij link"
