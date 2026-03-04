@@ -8,7 +8,7 @@ let useMockData = location.search.includes('mock');
 
 function createMockWordData() {
     const words = ['ma', 'ala', 'kot', 'tam', 'kota', 'flopy', 
-        'skisła', 'śreżoga', 'żółtość', 'pokwitli', 'kołkująca',
+        'skisła', 'śreżoga', 'żółtość','zatarła','tarzała', 'pokwitli', 'kołkująca',
         'nieuleczań', 'designerowi', 'redesignowi', 'serpentynami',
         'nieprzepysznych'];
     const map = {};
@@ -472,6 +472,10 @@ let gameOfDayState = {
 };
 
 let normalGameScore = 0;
+let normalGameStats = {
+    totalFound: 0,
+    totalSolutions: 0
+};
 
 function shuffleArray(arr, rng) {
     const randomInt = rng ? max => rng.int(max) : max => Math.floor(Math.random() * max);
@@ -520,7 +524,11 @@ function updateGameModeUI() {
             : '00:00';
     }
     if (pointsValue) {
-        pointsValue.textContent = String(gameOfDayState.active ? gameOfDayState.score : normalGameScore);
+        if (gameOfDayState.active) {
+            pointsValue.textContent = String(gameOfDayState.score);
+        } else {
+            pointsValue.textContent = `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
+        }
     }
 
     if (gameOfDayBtn) {
@@ -539,6 +547,15 @@ function updateGameModeUI() {
 function showRecentDiff(delta) {
     const recentDiffEl = document.getElementById('recent-difference');
     if (!recentDiffEl) return;
+    
+    // W trybie normalnym nie wyświetlaj przyrostu
+    if (!gameOfDayState.active) {
+        recentDiffEl.textContent = '';
+        recentDiffEl.classList.remove('green', 'red');
+        return;
+    }
+    
+    // W trybie gry dnia pokazuj przyrosty punktów
     if (delta === 0) {
         recentDiffEl.textContent = '';
         recentDiffEl.classList.remove('green', 'red');
@@ -557,12 +574,15 @@ function showRecentDiff(delta) {
 function updateScore(delta) {
     if (gameOfDayState.active) {
         gameOfDayState.score += delta;
-    } else {
-        normalGameScore += delta;
     }
+    // W trybie normalnym nie aktualizujemy punktów, tylko display
     const pointsValue = document.getElementById('points');
     if (pointsValue) {
-        pointsValue.textContent = String(gameOfDayState.active ? gameOfDayState.score : normalGameScore);
+        if (gameOfDayState.active) {
+            pointsValue.textContent = String(gameOfDayState.score);
+        } else {
+            pointsValue.textContent = `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
+        }
     }
     showRecentDiff(delta);
 }
@@ -788,6 +808,9 @@ async function newGame(wordData, count) {
     gameState.roundRevealed = false;
     if (gameOfDayState.active) {
         gameState.solutions.forEach(w => gameOfDayState.allSolutions.push(w));
+    } else {
+        // W trybie normalnym dodaj do całkowitej liczby możliwych słów
+        normalGameStats.totalSolutions += solutions.length;
     }
     updateGameUI();
 }
@@ -1007,9 +1030,13 @@ async function handleGuess(guess) {
     }
     if (gameState.solutions.includes(normalized) && !gameState.found.has(normalized)) {
         gameState.found.add(normalized);
-        updateScore(50);
         if (gameOfDayState.active) {
             gameOfDayState.allFound.add(normalized);
+            updateScore(50);
+        } else {
+            // W trybie normalnym dodaj do całkowitej liczby znalezionych
+            normalGameStats.totalFound += 1;
+            updateGameModeUI();
         }
         addWordToGuessList(normalized, 'correct');
         // keep the input text so player can continue editing
@@ -1448,12 +1475,26 @@ async function convertWordSetToProcessedData() {
 
 
 // TODO:
-// - karta ze statystykami: 
-//  - częstość liter
-//  - najczęstsze początki/końcówki dla konkretnych długości wyrazów
+// - czyszczenie kodu:
+//  - usunięcie nieużywanych funkcji i zmiennych
+//  - lepsze organizowanie kodu w moduły (np. oddzielny moduł do obsługi słów i anagramów, oddzielny do logiki gry, oddzielny do UI)
+//
+// - optymalizacja:
+//  - szybsze wczytywanie i przetwarzanie pliku z listą słów
+//  - optymalizacja wyświetlania, reużywanie elementów DOM zamiast ciągłego tworzenia nowych
+//
+// - karta ze statystykami (dla wszystkich słów, dla słów o konkretnych długościach):
+//  - najczęstsze litery
+//  - najczęstsze początki/końcówki
 //  - rozkład ilościowy stosunku spółgłosek do samogłosek w wyrazach konkretnych długości
+//  - największa liczba anagramów dla pojedynczego słowa, jakie to słowa
+//  - najczęściej występujące litery na raz
 //
 // - customowa gra:
 //  - ustaw czas rozgrywki w minutach
 //  - liczba liter
 //  - przycisk "udostępnij link"
+//
+// - bajery:
+//  - animacja przy 100/100
+//  - cofanie słów
