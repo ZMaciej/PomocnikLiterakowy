@@ -4,8 +4,8 @@
 // `setMockMode(true)` from the console makes the rest of the code behave
 // normally while avoiding any network i/o.
 
-let useMockData = location.search.includes('mock');
-let useKidsData = location.search.includes('kids');
+let useMockMode = location.search.includes('mock');
+let useKidsMode = location.search.includes('kids');
 
 function createMockWordData() {
     const words = ['ma', 'ala', 'kot', 'tam', 'kota', 'flopy', 
@@ -31,8 +31,8 @@ function createMockWordData() {
 // globally accessible helpers for manual toggling from console or other
 // scripts
 window.setMockMode = function(enable) {
-    useMockData = !!enable;
-    if (useMockData) {
+    useMockMode = !!enable;
+    if (useMockMode) {
         cachedSetPromise = Promise.resolve(createMockWordData());
         console.log('mock word data enabled');
     } else {
@@ -156,7 +156,7 @@ async function loadWordSet() {
     console.log('loadWordSet starting');
 
     // if the mock mode is enabled we can immediately return a tiny dataset
-    if (useMockData) {
+    if (useMockMode) {
         updateStatus('Wczytywanie mockowego słownika');
         updateLoadingProgress(100);
         // delay
@@ -168,7 +168,13 @@ async function loadWordSet() {
     updateStatus('Pobieranie listy słów...');
     updateLoadingProgress(0);
 
-    slowaFileName = useKidsData ? 'popularneSlowa.txt' : 'slowa.txt';
+    if (useKidsMode) {
+      // unhide kids title letters if in kids mode
+      const kidsLetters = document.querySelectorAll('.title-kids');
+      kidsLetters.forEach(el => el.classList.remove('hidden'));
+    }
+
+    slowaFileName = useKidsMode ? 'popularneSlowa.txt' : 'slowa.txt';
 
     const resp = await fetch(slowaFileName);
     if (!resp.ok) {

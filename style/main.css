@@ -62,6 +62,22 @@ label { display: block; margin-bottom: 0.5rem; }
   text-wrap: balance;
 }
 
+.title-kids {
+  display: flex;
+  justify-content: center;
+  gap: 0.1rem;
+  font-family: 'Modak';
+  font-weight: 100;
+}
+
+.title-kids.hidden {
+  display: none;
+}
+
+.kids-letter {
+  display: inline-block;
+}
+
 #header-panel {
     display: flex;
     justify-content: center;  

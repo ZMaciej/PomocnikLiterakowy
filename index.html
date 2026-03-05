@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Modak:wght@100;400;500;600&display=swap" rel="stylesheet">
     <title>Pomocnik Literakowy</title>
     <link rel="icon" href="pomocnikLogo.svg">
     <link rel="stylesheet" href="style/main.css">
@@ -21,7 +22,19 @@
             <button id="stop-game">🛑</button>
         </div>
         <button id="game-of-the-day" class="hidden">gra dnia</button>
-        <span id="title">Pomocnik Literakowy</span>
+        <div id="title">
+          <span id="title-main">Pomocnik Literakowy</span>
+          <div class="title-kids hidden">
+            <span class="kids-letter" style="color: var(--tile-red); -webkit-text-stroke: 0.7px var(--tile-red-border);">
+              k</span>
+            <span class="kids-letter" style="color: var(--tile-green); -webkit-text-stroke: 0.7px var(--tile-green-border);">
+              i</span>
+            <span class="kids-letter" style="color: var(--tile-blue); -webkit-text-stroke: 0.7px var(--tile-blue-border);">
+              d</span>
+            <span class="kids-letter" style="color: var(--tile-yellow); -webkit-text-stroke: 0.7px var(--tile-yellow-border);">
+              s</span>
+          </div>
+        </div>
         <div id="points-panel" class="hidden">
             <span id="recent-difference">0</span>
             <span id="points">0</span>
@@ -84,11 +97,23 @@
 
     <div id="game-of-day-overlay" class="hidden">
         <div id="game-of-day-modal">
-            <h2>Koniec gry dnia</h2>
-            <p>Twój wynik: <strong><span id="game-of-day-score">0</span> pkt</strong></p>
-            <p style="font-size: small; margin-top: 0.8rem;">Słowa:</p>
-            <p id="game-of-day-words-list" style="word-break: break-word;"></p>
-            <button id="game-of-day-return">Wróć do normalnego trybu</button>
+          <div>
+            <span style="font-size: 1.5rem; font-weight: bold;">Koniec gry dnia</span>
+            <div class="title-kids hidden">
+              <span class="kids-letter" style="color: var(--tile-red); -webkit-text-stroke: 0.7px var(--tile-red-border);">
+                k</span>
+              <span class="kids-letter" style="color: var(--tile-green); -webkit-text-stroke: 0.7px var(--tile-green-border);">
+                i</span>
+              <span class="kids-letter" style="color: var(--tile-blue); -webkit-text-stroke: 0.7px var(--tile-blue-border);">
+                d</span>
+              <span class="kids-letter" style="color: var(--tile-yellow); -webkit-text-stroke: 0.7px var(--tile-yellow-border);">
+                s</span>
+            </div>
+          </div>
+          <p>Twój wynik: <strong><span id="game-of-day-score">0</span> pkt</strong></p>
+          <p style="font-size: small; margin-top: 0.8rem;">Słowa:</p>
+          <p id="game-of-day-words-list" style="word-break: break-word;"></p>
+          <button id="game-of-day-return">Wróć do normalnego trybu</button>
         </div>
     </div>
 
