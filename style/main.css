@@ -103,6 +103,9 @@ label { display: block; margin-bottom: 0.5rem; }
 #game-of-day-overlay.hidden {
   display: none;
 }
+#congratulations-overlay.hidden {
+  display: none;
+}
 
 #game-of-the-day {
   display: flex;
@@ -352,6 +355,32 @@ label { display: block; margin-bottom: 0.5rem; }
 
 .red {
   color: #c5183e;
+}
+
+#congratulations-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 10001;
+}
+
+#congratulations-modal {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 1rem 1rem;
+  min-width: 280px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  margin: 1rem;
+  justify-content: center;
+  align-items: center;
 }
 
 #game-of-day-overlay {

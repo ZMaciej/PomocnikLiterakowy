@@ -106,11 +106,22 @@ function updateLoadingProgress(percent) {
 
 // --- routing support for SPA ------------------------------------------------
 
-function showSection(name) {
+async function showSection(name) {
     const sections = document.querySelectorAll('.page-section');
     sections.forEach(s => s.style.display = s.id === name + '-section' ? '' : 'none');
     updateGameModeUI();
     if (name === 'game') {
+        if (gifModeActive) {
+            normalGameStats.totalFound = 99;
+            normalGameStats.totalSolutions = 99;
+            updateGameModeUI();
+            await startGame();
+            gameState.letters = 'ukcharz';
+            gameState.solutions = ['kucharz'];
+            gameState.count = 7;
+            renderLetterTiles();
+            gifModeActive = false;
+        }
         // only initialize game once; subsequent navigations keep current state
         if (!gameState.letters) {
             // start game loading in background (don't block section display)
@@ -127,7 +138,11 @@ function navigateTo(name) {
 }
 
 function handleHashChange() {
-    const hash = location.hash.replace(/^#/, '');
+    const hashes = location.hash.replace(/^#/, '').split('&');
+    const hash = hashes[0];
+    if (hashes.length > 1 && hashes[1] === 'oneHundredGift') {
+        gifModeActive = true;
+    }
     if (!hash) return navigateTo('game');
     if (['check','game'].includes(hash)) {
         showSection(hash);
@@ -135,6 +150,8 @@ function handleHashChange() {
         navigateTo('game');
     }
 }
+
+let gifModeActive = false;
 
 window.addEventListener('hashchange', handleHashChange);
 
@@ -537,6 +554,12 @@ function updateGameModeUI() {
             pointsValue.textContent = String(gameOfDayState.score);
         } else {
             pointsValue.textContent = `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
+            if (normalGameStats.totalFound === normalGameStats.totalSolutions && normalGameStats.totalSolutions === 100 && useKidsMode) {
+                document.getElementById('congratulations-overlay').classList.remove('hidden');
+                document.getElementById('congratulations-return').addEventListener('click', () => {
+                    document.getElementById('congratulations-overlay').classList.add('hidden');
+                });
+            }
         }
     }
 
@@ -946,7 +969,6 @@ function onPointerMove(e) {
             // Rebuild display from gameState to ensure sync
             rebuildTilesFromGameState(dst);
             draggingIndex = dst;
-            // handleGuess(gameState.letters); // auto-check disabled, use button
         }
     }
 }
