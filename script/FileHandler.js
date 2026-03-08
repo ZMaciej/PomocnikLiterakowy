@@ -79,13 +79,12 @@ async function convertWordSetToProcessedData() {
 
     const wordsArray = new Array();
     const anagramMap = {};
-    let indexOfWord = 0;
-    for (const w of words) {
+
+    for (let i = 0; i < words.length; i++) {
+        w = words[i];
         wordsArray.push(w);
         const key = w.split('').sort().join('');
-        if (!anagramMap[key]) anagramMap[key] = [];
-        anagramMap[key].push(indexOfWord);
-        indexOfWord++;
+        (anagramMap[key] ??= []).push(i);
     }
 
     const lengthKeys = {};
@@ -104,23 +103,35 @@ async function saveProcessedDataToLocalStorage() {
     // request of downloading the file should be triggered manually from console to avoid blocking the main thread during normal gameplay
     try {
         const processedData = await convertWordSetToProcessedData();
-        const jsonString = JSON.stringify(processedData);
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'processedWordData.json';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }, 100);
-        console.log('Processed data download started');
+        // const anagramMap = processedData.anagramMap;
+        // saveToFile('anagramMap.json', JSON.stringify(anagramMap));
+        const lengthKeys = processedData.lengthKeys;
+        saveToFile('lengthKeys.json', JSON.stringify(lengthKeys));
     } catch (e) {
         console.error('Error processing and saving word data', e);
     }
+}
+
+async function loadFromJsonFile(fileName) {
+    try {
+        const resp = await fetch(fileName);
+        if (!resp.ok) {
+            throw new Error(`Unable to fetch JSON file: ${fileName}`);
+        }
+        const data = await resp.json();
+        const returnObject = Object.assign(Object.create(null), data);
+        console.log(`Loaded data from ${fileName}`);
+        return returnObject;
+    } catch (e) {
+        console.error(`Error loading JSON file ${fileName}`, e);
+        return null;
+    }
+}
+
+//anagramMap = await loadFromJsonFile('anagramMap.json')
+
+function getAnagramsForWord(anagramMap, anagramMapKey) {
+    return anagramMap[anagramMapKey] || [];
 }
 
 async function loadCsvFile(fileName) {
@@ -146,11 +157,15 @@ async function commonPartWithSjp() {
     const filteredWords = words.filter(w => topWordsSet.has(w));
     console.log('Filtered words count:', filteredWords.length);
     // save the filtered list to a new file
-    const blob = new Blob([filteredWords.join('\n')], { type: 'text/plain' });
+    saveToFile('filteredWords.txt', filteredWords.join('\n'));
+}
+
+function saveToFile(filename, content) {
+    const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'filteredWords.txt';
+    link.download = filename;
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
@@ -158,4 +173,5 @@ async function commonPartWithSjp() {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     }, 100);
+    console.log(`File download started: ${filename}`);
 }
