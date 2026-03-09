@@ -769,6 +769,11 @@ async function startGameOfDay() {
         }
     }
     configureRandomMode('daily');
+    const gameOfDayDate = document.getElementById('game-of-day-date');
+    if (gameOfDayDate) {
+        const today = new Date();
+        gameOfDayDate.textContent = `(${pad2(today.getDate())}-${pad2(today.getMonth() + 1)}-${today.getFullYear()})`;
+    }
     gameOfDayState.active = true;
     gameOfDayState.score = 0;
     gameOfDayState.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
