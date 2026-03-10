@@ -7,7 +7,10 @@ function buildBinary(anagramMap) {
     for (const [key, arr] of entries) {
         const keyBytes = encoder.encode(key);
         totalSize += 2 + keyBytes.length; // key length + key
-        totalSize += 2 + arr.length * 4;  // array length + numbers
+        const padding1 = (4 - ((totalSize) % 4)) % 4; // alignment before array length
+        totalSize += padding1 + 2; // padding + array length
+        const padding2 = (4 - ((totalSize) % 4)) % 4; // alignment before array data
+        totalSize += padding2 + arr.length * 4;  // padding + array data
     }
 
     const buffer = new ArrayBuffer(totalSize);
@@ -27,14 +30,27 @@ function buildBinary(anagramMap) {
         new Uint8Array(buffer, offset, keyBytes.length).set(keyBytes);
         offset += keyBytes.length;
 
+        // Align offset to 4-byte boundary before array length
+        const padding1 = (4 - (offset % 4)) % 4;
+        offset += padding1;
+
         view.setUint16(offset, arr.length, true);
         offset += 2;
+
+        // Align offset to 4-byte boundary for Uint32Array
+        const padding2 = (4 - (offset % 4)) % 4;
+        offset += padding2;
 
         new Uint32Array(buffer, offset, arr.length).set(arr);
         offset += arr.length * 4;
     }
 
     return buffer;
+}
+async function saveAnagramMap()
+{
+    const anagramMap = (await convertWordSetToProcessedData()).anagramMap;
+    await saveAnagramMapAsBinary(anagramMap, 'anagram_map.bin');
 }
 
 async function saveAnagramMapAsBinary(anagramMap, fileName) {
@@ -59,7 +75,7 @@ function parseBinary(buffer) {
     const entryCount = view.getUint32(offset, true);
     offset += 4;
 
-    const map = Object.create(null);
+    const map = new Map();
 
     for (let i = 0; i < entryCount; i++) {
         const keyLen = view.getUint16(offset, true);
@@ -69,13 +85,21 @@ function parseBinary(buffer) {
         const key = decoder.decode(keyBytes);
         offset += keyLen;
 
+        // Align offset to 4-byte boundary before array length
+        const padding1 = (4 - (offset % 4)) % 4;
+        offset += padding1;
+
         const arrLen = view.getUint16(offset, true);
         offset += 2;
+
+        // Align offset to 4-byte boundary for Uint32Array
+        const padding2 = (4 - (offset % 4)) % 4;
+        offset += padding2;
 
         const arr = new Uint32Array(buffer, offset, arrLen);
         offset += arrLen * 4;
 
-        map[key] = arr;
+        map.set(key, arr);
     }
 
     return map;
@@ -88,4 +112,44 @@ async function loadAnagramMapFromBinary(fileName) {
     }
     const buffer = await resp.arrayBuffer();
     return parseBinary(buffer);
+}
+
+async function loadAnagramMap() {
+    const anagramMap = await loadAnagramMapFromBinary('anagram_map.bin');
+    console.log('Loaded anagram map from binary file');
+    return anagramMap;
+}
+
+async function testAnagramMapLoading() {
+    // binary method should be much faster than text parsing
+    const timeStart = performance.now();
+    const anagramMap = await loadAnagramMap();
+    const timeEnd = performance.now();
+    console.log(`Binary loading time: ${timeEnd - timeStart} ms`);
+    // requesting the same key multiple times should be very fast since it's already in memory
+    const timeStartRepeated = performance.now();
+    let value;
+    for (let i = 0; i < 100000; i++) {
+      value = anagramMap.get('aabklorsą')[0];
+    }
+    console.log('Repeated access value:', value);
+    const timeEndRepeated = performance.now();
+    console.log(`Binary repeated access time: ${timeEndRepeated - timeStartRepeated} ms`);
+    
+    let keysArray = Array.from( anagramMap.keys() );
+
+    // for comparison, also load from text-based JSON
+    const timeStartJson = performance.now();
+    const anagramMapFromText = await loadFromJsonFile('anagramMap.json');
+    const timeEndJson = performance.now();
+    console.log(`JSON loading time: ${timeEndJson - timeStartJson} ms`);
+    // requesting the same key multiple times should be fast, but initial loading is much slower than binary
+    const timeStartRepeatedJson = performance.now();
+    let valueJson;
+    for (let i = 0; i < 100000; i++) {
+      valueJson = anagramMapFromText['aabklorsą'][0];
+    }
+    console.log('Repeated access value (JSON):', valueJson);
+    const timeEndRepeatedJson = performance.now();
+    console.log(`JSON repeated access time: ${timeEndRepeatedJson - timeStartRepeatedJson} ms`);
 }

@@ -30,11 +30,11 @@ async function loadProcessedDataFromLocalStorage() {
     }
 }
 
-async function downloadWordsFile() {
+async function downloadWordsFile(path = 'slowa.txt') {
     console.log('loadWordSet starting');
 
     // fetch text file from same directory; make sure slowa.txt is available
-    const resp = await fetch('slowa.txt');
+    const resp = await fetch(path);
     if (!resp.ok) {
         throw new Error('Unable to fetch word list');
     }

@@ -1532,5 +1532,4 @@ async function convertWordSetToProcessedData() {
 //  - przycisk "udostępnij link"
 //
 // - bajery:
-//  - animacja przy 100/100
 //  - cofanie słów
