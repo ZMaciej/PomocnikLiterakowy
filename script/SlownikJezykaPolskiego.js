@@ -5,6 +5,9 @@ class SlownikJezykaPolskiego {
     this.anagramArray = null;
     this.anagramMap = null;
     this.lengthKeys = null;
+    this.polishChars = ['a', 'ą', 'b', 'c', 'ć', 'd', 'e', 'ę',
+      'f', 'g', 'h', 'i', 'j', 'k', 'l', 'ł', 'm', 'n', 'ń', 'o', 'ó',
+      'p', 'r', 's', 'ś', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'ź', 'ż'];
   }
   // example path would be 'data/sjp-full'
   async load(path) {

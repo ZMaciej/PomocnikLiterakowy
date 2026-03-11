@@ -30,7 +30,7 @@ async function loadProcessedDataFromLocalStorage() {
     }
 }
 
-async function downloadWordsFile(path = 'slowa.txt') {
+async function downloadWordsFile(path = 'data/sjp-full/slowa.txt') {
     console.log('loadWordSet starting');
 
     // fetch text file from same directory; make sure slowa.txt is available
@@ -72,9 +72,7 @@ async function downloadWordsFile(path = 'slowa.txt') {
     return words;
 }
 
-async function convertWordSetToProcessedData() {
-    const words = await downloadWordsFile();
-    
+function convertWordSetToProcessedData(words) {
     // build a dictionary mapping sorted letter sequences to word lists
 
     const wordsArray = new Array();
@@ -98,13 +96,12 @@ async function convertWordSetToProcessedData() {
     return {wordsArray, anagramMap, lengthKeys};
 }
 
-async function saveProcessedDataToLocalStorage() {
+async function saveProcessedDataToLocalStorage(processedData) {
     // This function downloads the processed word data as a JSON file to the user's computer.
     // request of downloading the file should be triggered manually from console to avoid blocking the main thread during normal gameplay
     try {
-        const processedData = await convertWordSetToProcessedData();
-        // const anagramMap = processedData.anagramMap;
-        // saveToFile('anagramMap.json', JSON.stringify(anagramMap));
+        const anagramMap = processedData.anagramMap;
+        await saveAnagramMapAsBinary(anagramMap, 'anagram_map.bin')
         const lengthKeys = processedData.lengthKeys;
         saveToFile('lengthKeys.json', JSON.stringify(lengthKeys));
     } catch (e) {
@@ -128,24 +125,8 @@ async function loadFromJsonFile(fileName) {
     }
 }
 
-//anagramMap = await loadFromJsonFile('anagramMap.json')
-
 function getAnagramsForWord(anagramMap, anagramMapKey) {
     return anagramMap[anagramMapKey] || [];
-}
-
-async function loadCsvFile(fileName) {
-    const resp = await fetch(fileName);
-    if (!resp.ok) {
-        throw new Error(`Unable to fetch CSV file: ${fileName}`);
-    }
-    const text = await resp.text();
-    const rows = text.split(/\r?\n/).filter(Boolean);
-    const data = rows.map(row => {
-        const [word, count] = row.split(',');
-        return { word, count: parseInt(count, 10) };
-    });
-    return data;
 }
 
 async function commonPartWithSjp() {
@@ -174,4 +155,24 @@ function saveToFile(filename, content) {
         URL.revokeObjectURL(url);
     }, 100);
     console.log(`File download started: ${filename}`);
+}
+
+async function loadCsvFile(fileName) {
+    const resp = await fetch(fileName);
+    if (!resp.ok) {
+        throw new Error(`Unable to fetch CSV file: ${fileName}`);
+    }
+    const text = await resp.text();
+    const rows = text.split(/\r?\n/).filter(Boolean);
+    const data = rows.map(row => {
+        const [word, count] = row.split(',');
+        return { word, count: parseInt(count, 10) };
+    });
+    return data;
+}
+
+async function getProcessedWordFiles(filePath) {
+    const words = await downloadWordsFile(filePath);
+    const processedDataStruct = convertWordSetToProcessedData(words);
+    await saveProcessedDataToLocalStorage(processedDataStruct);
 }
