@@ -137,26 +137,27 @@ function setupNavigation() {
 // --- end routing support -----------------------------------------------------
 
 async function loadWordSet() {
-    console.log('loadWordSet starting');
-
-    // if the mock mode is enabled we can immediately return a tiny dataset
     if (useMockMode) {
-        updateStatus('Wczytywanie mockowego słownika');
-        updateLoadingProgress(100);
-        // delay
-        // await new Promise(r => setTimeout(r, 50));
-        return createMockWordData();
+        const sjp = new SlownikJezykaPolskiego();
+        await sjp.load('data/mock');
+        return sjp;
     }
-
-    // fetch text file from same directory; make sure slowa.txt is available
-    updateStatus('Pobieranie listy słów...');
-    updateLoadingProgress(0);
 
     if (useKidsMode) {
       // unhide kids title letters if in kids mode
       const kidsLetters = document.querySelectorAll('.title-kids');
       kidsLetters.forEach(el => el.classList.remove('hidden'));
+      const sjp = new SlownikJezykaPolskiego();
+      await sjp.load('data/sjp-popular');
+      return sjp;
     }
+
+    const sjp = new SlownikJezykaPolskiego();
+    await sjp.load('data/sjp-full');
+    return sjp;
+
+    // updateStatus('Pobieranie listy słów...');
+    // updateLoadingProgress(0);
 
     slowaFileName = useKidsMode ? 'popularneSlowa.txt' : 'slowa.txt';
 
@@ -233,7 +234,7 @@ async function loadWordSet() {
 
     const lengthKeys = buildLengthKeys(map);
 
-    return {set, map, lengthKeys};
+    return sjp;
 }
 
 let cachedSetPromise = null;
@@ -250,7 +251,7 @@ async function init() {
     setupNavigation();
     
     try {
-        updateStatus('Sprawdzanie pamięci podręcznej...');
+        updateStatus('Wczytywanie słownika...');
         updateLoadingProgress(10);
         
         await getWordSet();
@@ -341,20 +342,20 @@ input.addEventListener('input', async () => {
     }
 
     try {
-        const wordData = await getWordSet();
+        const sjp = await getWordSet();
         let matchesSet;
 
         if (wildcardCount === 0) {
             // simple lookup by sorted letters
             const key = letters.split('').sort().join('');
-            const arr = wordData.map[key] || [];
+            const arr = sjp.getAnagrams(key);
             matchesSet = new Set(arr);
         } else {
             // expand blanks into all letter possibilities and lookup each key
             const keys = getWildcardKeys(letters);
             matchesSet = new Set();
             for (const key of keys) {
-                const arr = wordData.map[key];
+                const arr = sjp.getAnagrams(key);
                 if (arr && arr.length) {
                     for (const w of arr) matchesSet.add(w);
                 }
@@ -375,72 +376,6 @@ input.addEventListener('input', async () => {
 });
 
 // --- game logic ------------------------------------------------------------
-
-function hashStringToUint32(input) {
-    let hash = 2166136261;
-    for (let i = 0; i < input.length; i++) {
-        hash ^= input.charCodeAt(i);
-        hash = Math.imul(hash, 16777619);
-    }
-    return hash >>> 0;
-}
-
-function createSeededRandom(seedString) {
-    let state = hashStringToUint32(seedString);
-    return function nextRandom() {
-        state += 0x6D2B79F5;
-        let t = state;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-function createRngController(seedString) {
-    const random = createSeededRandom(seedString);
-    return {
-        seed: seedString,
-        next() {
-            return random();
-        },
-        int(maxExclusive) {
-            if (maxExclusive <= 0) return 0;
-            return Math.floor(random() * maxExclusive);
-        }
-    };
-}
-
-function pad2(value) {
-    return String(value).padStart(2, '0');
-}
-
-function getTodaySeedString() {
-    const now = new Date();
-    return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-}
-
-function getSessionSeedString() {
-    const now = new Date();
-    return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
-}
-
-const randomControl = {
-    mode: 'normal',
-    normalSeedBase: getSessionSeedString(),
-    dailySeedBase: getTodaySeedString(),
-    wordRng: null,
-    mixRng: null
-};
-
-function configureRandomMode(mode) {
-    const isDaily = mode === 'daily';
-    const baseSeed = isDaily ? randomControl.dailySeedBase : randomControl.normalSeedBase;
-    randomControl.mode = isDaily ? 'daily' : 'normal';
-    randomControl.wordRng = createRngController(`${baseSeed}:word-sequence`);
-    randomControl.mixRng = createRngController(`${baseSeed}:letter-mix`);
-}
-
-configureRandomMode('normal');
 
 const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
 
@@ -749,8 +684,8 @@ async function startGameOfDay() {
     showRecentDiff(0);
     updateGameModeUI();
     gameState.count = 7;
-    const wordData = await getWordSet();
-    await newGame(wordData, 7);
+    const sjp = await getWordSet();
+    await newGame(sjp, 7);
     startGameOfDayTimer();
 }
 
@@ -764,7 +699,7 @@ async function returnToNormalMode() {
     await startGame();
 }
 
-async function newGame(wordData, count) {
+async function newGame(sjp, count) {
     gameState.count = count;
     gameState.roundNumber += 1;
     if (gameOfDayState.active) {
@@ -779,10 +714,8 @@ async function newGame(wordData, count) {
             }
         }
     }
-    // choose random key of correct length using precomputed index
-    const keys = (wordData.lengthKeys && wordData.lengthKeys[count]) ? wordData.lengthKeys[count] :
-                  Object.keys(wordData.map).filter(k => k.length === count);
-    if (!keys || keys.length === 0) {
+    anagramCount = sjp.getSortedAnagramCountsByLength(count);
+    if (anagramCount === 0) {
         document.getElementById('letter-display').textContent = 'Brak słów o takiej długości';
         document.getElementById('solution-count').textContent = '0';
         gameState.letters = '';
@@ -801,9 +734,11 @@ async function newGame(wordData, count) {
         }
         return;
     }
-    const key = keys[randomControl.wordRng.int(keys.length)];
+    const pick = randomControl.wordRng.int(anagramCount);
+    const solutionList = sjp.getAnagramListFromIndex(count, pick);
+    const key = solutionList[0];
     const letters = shuffleArray(key.split(''), randomControl.mixRng).join('');
-    const solutions = Array.from(new Set(wordData.map[key] || [])).sort();
+    const solutions = Array.from(solutionList).sort();
     gameState.letters = letters;
     gameState.solutions = solutions;
     gameState.found.clear();

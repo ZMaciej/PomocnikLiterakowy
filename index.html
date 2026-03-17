@@ -19,7 +19,7 @@
     <div id="header-panel" style="width: 100%;">
         <div id="started-game-controls" class="hidden">
             <span id="timer-value">00:00</span>
-            <button id="stop-game">🛑</button>
+            <button id="stop-game">❌</button>
         </div>
         <button id="game-of-the-day" class="hidden">gra dnia</button>
         <div id="title">
@@ -50,7 +50,7 @@
     <div id="loading-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999;">
         <h2>Wczytywanie słownika...</h2>
         <progress id="loading-progress" max="100" value="0" style="width:300px; margin:1rem 0;"></progress>
-        <p id="loading-status">Sprawdzanie pamięci podręcznej...</p>
+        <p id="loading-status">Wczytywanie słownika...</p>
     </div>
 
     <!-- sekcje ukrywane/pokazywane przez JS -->
@@ -128,10 +128,11 @@
         </div>
     </div>
 
-    <script src="script/main.js" defer></script>
     <script src="script/LiterakiData.js" defer></script>
     <script src="script/FileHandler.js" defer></script>
     <script src="script/SlownikJezykaPolskiego.js" defer></script>
     <script src="script/AnagramMapHandler.js" defer></script>
+    <script src="script/RandomControl.js" defer></script>
+    <script src="script/main.js" defer></script>
 </body>
 </html>
