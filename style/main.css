@@ -200,6 +200,57 @@ label { display: block; margin-bottom: 0.5rem; }
     border: 1px solid var(--tile-red-border);
 }
 
+#loadingAnimation {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  margin: 0.6rem 0;
+}
+
+.loading-square {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  display: inline-block;
+  animation: loading-square-bounce 1s ease-in-out infinite;
+}
+
+.loading-square-yellow {
+  background-color: var(--tile-yellow);
+  border: 1px solid var(--tile-yellow-border);
+  animation-delay: 0s;
+}
+
+.loading-square-green {
+  background-color: var(--tile-green);
+  border: 1px solid var(--tile-green-border);
+  animation-delay: 0.15s;
+}
+
+.loading-square-blue {
+  background-color: var(--tile-blue);
+  border: 1px solid var(--tile-blue-border);
+  animation-delay: 0.3s;
+}
+
+.loading-square-red {
+  background-color: var(--tile-red);
+  border: 1px solid var(--tile-red-border);
+  animation-delay: 0.45s;
+}
+
+@keyframes loading-square-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
 /* interactive letter tiles for game (pointer drag) */
 .letter-tile {
     display: inline-flex;

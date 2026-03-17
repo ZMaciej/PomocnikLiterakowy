@@ -97,8 +97,6 @@ function convertWordSetToProcessedData(words) {
 }
 
 async function saveProcessedDataToLocalStorage(processedData) {
-    // This function downloads the processed word data as a JSON file to the user's computer.
-    // request of downloading the file should be triggered manually from console to avoid blocking the main thread during normal gameplay
     try {
         const anagramMap = processedData.anagramMap;
         await saveAnagramMapAsBinary(anagramMap, 'anagram_map.bin')

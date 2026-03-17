@@ -1,45 +1,5 @@
-// ---- mock helpers -------------------------------------------------------
-// a tiny fake dictionary that can be swapped in during UI work.  the
-// real loader is expensive so appending "?mock" to the URL or calling
-// `setMockMode(true)` from the console makes the rest of the code behave
-// normally while avoiding any network i/o.
-
 let useMockMode = location.search.includes('mock');
 let useKidsMode = location.search.includes('kids');
-
-function createMockWordData() {
-    const words = ['ma', 'ala', 'kot', 'tam', 'kota', 'flopy', 
-        'skisła', 'śreżoga', 'żółtość','zatarła','tarzała', 'pokwitli', 'kołkująca',
-        'nieuleczań', 'designerowi', 'redesignowi', 'serpentynami',
-        'nieprzepysznych'];
-    const map = {};
-    const set = new Set(words);
-    for (const w of words) {
-        const key = w.split('').sort().join('');
-        if (!map[key]) map[key] = [];
-        map[key].push(w);
-    }
-    const lengthKeys = {};
-    for (const k of Object.keys(map)) {
-        const len = k.length;
-        lengthKeys[len] = lengthKeys[len] || [];
-        lengthKeys[len].push(k);
-    }
-    return { set, map, lengthKeys };
-}
-
-// globally accessible helpers for manual toggling from console or other
-// scripts
-window.setMockMode = function(enable) {
-    useMockMode = !!enable;
-    if (useMockMode) {
-        cachedSetPromise = Promise.resolve(createMockWordData());
-        console.log('mock word data enabled');
-    } else {
-        cachedSetPromise = null; // force reload on next call
-        console.log('mock word data disabled');
-    }
-};
 
 // ------------------------------------------------------------------------
 
@@ -137,9 +97,13 @@ function setupNavigation() {
 // --- end routing support -----------------------------------------------------
 
 async function loadWordSet() {
+    const progressCallback = ({percent, message}) => {
+        updateLoadingProgress(percent);
+        updateStatus(message);
+    };
     if (useMockMode) {
         const sjp = new SlownikJezykaPolskiego();
-        await sjp.load('data/mock');
+        await sjp.load('data/mock', progressCallback);
         return sjp;
     }
 
@@ -148,92 +112,12 @@ async function loadWordSet() {
       const kidsLetters = document.querySelectorAll('.title-kids');
       kidsLetters.forEach(el => el.classList.remove('hidden'));
       const sjp = new SlownikJezykaPolskiego();
-      await sjp.load('data/sjp-popular');
+      await sjp.load('data/sjp-popular', progressCallback);
       return sjp;
     }
 
     const sjp = new SlownikJezykaPolskiego();
-    await sjp.load('data/sjp-full');
-    return sjp;
-
-    // updateStatus('Pobieranie listy słów...');
-    // updateLoadingProgress(0);
-
-    slowaFileName = useKidsMode ? 'popularneSlowa.txt' : 'slowa.txt';
-
-    const resp = await fetch(slowaFileName);
-    if (!resp.ok) {
-        updateStatus('Nie udało się wczytać listy słów.');
-        throw new Error('Unable to fetch word list');
-    }
-
-    const reader = resp.body.getReader();
-    let received = 0;
-    let chunks = [];
-    var start = new Date().getTime();
-    while (true) {
-        var now = new Date().getTime();
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.length;
-        timePassed = (now - start) / 1000;
-        updateLoadingProgress(20);
-        updateStatus(`Pobieranie listy słów... (${timePassed}s)`);
-    }
-
-    const decoder = new TextDecoder();
-    // combine chunks into single Uint8Array
-    let totalLen = 0;
-    for (const c of chunks) totalLen += c.length;
-    const combined = new Uint8Array(totalLen);
-    let offset = 0;
-    for (const c of chunks) {
-        combined.set(c, offset);
-        offset += c.length;
-    }
-    const text = decoder.decode(combined);
-
-    // sanity check
-    if (!text || !text.trim()) {
-        console.error('Fetched file text is empty');
-        throw new Error('Word list file appears empty');
-    }
-
-    const words = text.split(/\r?\n/).filter(Boolean);
-    console.log('loaded', words.length, 'words');
-    
-    updateStatus('Przetwarzanie słownika...');
-    updateLoadingProgress(50);
-    // await new Promise(r => setTimeout(r, 300));
-    
-    // build a dictionary mapping sorted letter sequences to word lists
-    const map = {};
-    const set = new Set();
-    for (const w of words) {
-        set.add(w);
-        const key = w.split('').sort().join('');
-        if (!map[key]) map[key] = [];
-        map[key].push(w);
-    }
-
-    updateStatus('Optymalizowanie wyszukiwania...');
-    updateLoadingProgress(75);
-    // await new Promise(r => setTimeout(r, 300));
-    
-    // build length index to speed up game selection
-    function buildLengthKeys(map) {
-        const lengthKeys = {};
-        for (const key of Object.keys(map)) {
-            const len = key.length;
-            if (!lengthKeys[len]) lengthKeys[len] = [];
-            lengthKeys[len].push(key);
-        }
-        return lengthKeys;
-    }
-
-    const lengthKeys = buildLengthKeys(map);
-
+    await sjp.load('data/sjp-full', progressCallback);
     return sjp;
 }
 
@@ -1345,72 +1229,6 @@ async function getWordsListWithXVowels(vowelCount, wordLength) {
     }
     return matchingWords;
 }
-
-async function convertWordSetToProcessedData() {
-    console.log('loadWordSet starting');
-
-    // fetch text file from same directory; make sure slowa.txt is available
-    const resp = await fetch('slowa.txt');
-    if (!resp.ok) {
-        throw new Error('Unable to fetch word list');
-    }
-
-    const reader = resp.body.getReader();
-    let received = 0;
-    let chunks = [];
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.length;
-    }
-
-    const decoder = new TextDecoder();
-    // combine chunks into single Uint8Array
-    let totalLen = 0;
-    for (const c of chunks) totalLen += c.length;
-    const combined = new Uint8Array(totalLen);
-    let offset = 0;
-    for (const c of chunks) {
-        combined.set(c, offset);
-        offset += c.length;
-    }
-    const text = decoder.decode(combined);
-
-    // sanity check
-    if (!text || !text.trim()) {
-        console.error('Fetched file text is empty');
-        throw new Error('Word list file appears empty');
-    }
-
-    const words = text.split(/\r?\n/).filter(Boolean);
-    console.log('loaded', words.length, 'words');
-    
-    // build a dictionary mapping sorted letter sequences to word lists
-
-    const wordsArray = new Array();
-    const anagramMap = new Map();
-    let indexOfWord = 0;
-    for (const w of words) {
-        wordsArray.push(w);
-        const key = w.split('').sort().join('');
-        if (!anagramMap.has(key)) anagramMap.set(key, []);
-        anagramMap.get(key).push(indexOfWord);
-        indexOfWord++;
-    }
-
-    const lengthKeys = {};
-    let indexOfKeyInMap = 0;
-    for (const key of anagramMap.keys()) {
-        const len = key.length;
-        if (!lengthKeys[len]) lengthKeys[len] = [];
-        lengthKeys[len].push(indexOfKeyInMap);
-        indexOfKeyInMap++;
-    }
-    return {wordsArray, anagramMap, lengthKeys};
-}
-
-
 
 // TODO:
 // - czyszczenie kodu:
