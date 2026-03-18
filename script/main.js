@@ -174,6 +174,30 @@ function getWordSet() {
     return cachedSetPromise;
 }
 
+let wordOfTheDayController = null;
+
+async function initializeWordOfTheDay() {
+    const wordEl = document.getElementById('word-of-the-day-value');
+    const descriptionEl = document.getElementById('word-of-the-day-description');
+    if (!wordEl || !descriptionEl || typeof WordOfTheDay !== 'function') {
+        return;
+    }
+
+    if (!wordOfTheDayController) {
+        wordOfTheDayController = new WordOfTheDay({
+            filePath: 'data/wotd-curses/definicje.txt',
+            wordElementId: 'word-of-the-day-value',
+            descriptionElementId: 'word-of-the-day-description'
+        });
+    }
+
+    try {
+        await wordOfTheDayController.loadAndRender();
+    } catch (err) {
+        console.error('Failed to load word of the day', err);
+    }
+}
+
 // preload word set immediately on page load so status updates are independent
 async function init() {
     // prepare SPA navigation
@@ -186,7 +210,11 @@ async function init() {
         updateStatus('Wczytywanie słownika...');
         updateLoadingProgress(10);
         
-        await getWordSet();
+        await Promise.all([
+            getWordSet(),
+            initializeWordOfTheDay()
+        ]);
+        
         updateLoadingProgress(100);
         stopLoadingTimer();
         

@@ -11,6 +11,7 @@
     <title>Pomocnik Literakowy</title>
     <link rel="icon" href="pomocnikLogo.svg">
     <link rel="stylesheet" href="style/main.css">
+    <link rel="stylesheet" href="style/wordOfTheDay.css">
     <!-- links to icons refresh, arrow_forward,  moon, sun-->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=arrow_forward,moon,refresh,sun" />
     <script src="https://cdn.jsdelivr.net/npm/@tsparticles/confetti@3.0.3/tsparticles.confetti.bundle.min.js"></script>
@@ -68,6 +69,16 @@
     </section>
 
     <section id="game-section" class="page-section" style="display:none;">
+      <div id="word-of-the-day">
+          <div>
+            <img src="pingwinPixel2.png">
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-start; padding: 0.1rem;">
+            <div id="word-of-the-day-header">Słowo dnia:</div>
+            <div id="word-of-the-day-value">Odjebże</div>
+            <div id="word-of-the-day-description">- wulgarnie: wzmocniona forma trybu rozkazującego 2. osoby liczby pojedynczej od odjebać; zrób to wreszcie (często o czymś głupim) lub zabij kogoś.</div>
+          </div>
+      </div>
       <div class="controls">
         <div id="letter-count-button" style="display:inline-block; margin-left:0.5rem;">
             Liczba liter:
@@ -139,6 +150,7 @@
     <script src="script/AnagramMapHandler.js" defer></script>
     <script src="script/FileHandler.js" defer></script>
     <script src="script/RandomControl.js" defer></script>
+    <script src="script/WordOfTheDay.js" defer></script>
     <script src="script/main.js" defer></script>
 </body>
 </html>
