@@ -36,7 +36,6 @@ class SlownikJezykaPolskiego {
   // example path would be 'data/sjp-full'
   async load(path, onProgress = null) {
     try {
-
       let comments = ['Pobieranie listy słów...',
         'Wczytywanie mapy anagramów...',
         'Finalizowanie słownika...',

@@ -216,36 +216,40 @@ async function loadRawFileWithIndexedDbCache(filePath, responseType) {
     return freshContent;
 }
 
-async function loadProcessedDataFromLocalStorage() {
-    try {
-        const resp = await fetch('processedWordData.json');
-        if (resp.ok) {
-            const processedData = await resp.json();
-            console.log('loaded preprocessed data from processedWordData.json');
-            
-            const set = new Set(processedData.wordsArray);
-            const map = {};
-            
-            // Rebuild map from anagramMap
-            for (const sortedLetters of Object.keys(processedData.anagramMap)) {
-                const wordIndices = processedData.anagramMap[sortedLetters];
-                const words = wordIndices.map(idx => processedData.wordsArray[idx]);
-                map[sortedLetters] = words;
-            }
-            
-            // Rebuild lengthKeys to point to sorted letter keys instead of indices
-            const lengthKeysNew = {};
-            for (const sortedLetters of Object.keys(processedData.anagramMap)) {
-                const len = sortedLetters.length;
-                if (!lengthKeysNew[len]) lengthKeysNew[len] = [];
-                lengthKeysNew[len].push(sortedLetters);
-            }
-            
-            return {set, map, lengthKeys: lengthKeysNew};
+async function splitWordsWithUiYield(text) {
+    const words = [];
+    let start = 0;
+    let processedLines = 0;
+
+    while (start <= text.length) {
+        let lineEnd = text.indexOf('\n', start);
+        if (lineEnd === -1) {
+            lineEnd = text.length;
         }
-    } catch (err) {
-        console.log('Could not load processedWordData.json, falling back to slowa.txt', err);
+
+        let line = text.slice(start, lineEnd);
+        if (line.endsWith('\r')) {
+            line = line.slice(0, -1);
+        }
+
+        if (line) {
+            words.push(line);
+        }
+
+        if (lineEnd === text.length) {
+            break;
+        }
+
+        start = lineEnd + 1;
+        processedLines++;
+
+        // Yield periodically so loading timer can repaint while parsing huge files.
+        if (processedLines % 1000000 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
     }
+
+    return words;
 }
 
 async function loadWordsFile(path = 'data/sjp-full/slowa.txt') {
@@ -259,7 +263,7 @@ async function loadWordsFile(path = 'data/sjp-full/slowa.txt') {
         throw new Error('Word list file appears empty');
     }
 
-    const words = text.split(/\r?\n/).filter(Boolean);
+    const words = await splitWordsWithUiYield(text);
     console.log('loaded', words.length, 'words');
     return words;
 }

@@ -9,18 +9,6 @@
     --tile-red-border: #b93f26;
 }
 
-/* od Eweli */
-/* :root {
-    --tile-yellow: #fff34f;
-    --tile-yellow-border: #dfd87e;
-    --tile-green: #6bed8b;
-    --tile-green-border: #34c759;
-    --tile-blue: #459cff;
-    --tile-blue-border: #236cbf;
-    --tile-red: #F17861;
-    --tile-red-border: #CF604B;
-} */
-
 body {
     font-family: 'Poppins', sans-serif;
     margin: 2rem;
@@ -150,25 +138,11 @@ label { display: block; margin-bottom: 0.5rem; }
     margin-bottom: 1rem;
 }
 
-#loading-progress {
-    height: 24px;
-    width: 100%;
-    appearance: none;
-    -webkit-appearance: none;
-    background-color: #f0f0f0;
-    border-radius: 4px;
-}
-
-/* Chrome/Safari progress bar */
-#loading-progress::-webkit-progress-bar {
-    background-color: #f0f0f0;
-    border-radius: 4px;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-#loading-progress::-webkit-progress-value {
-    background: linear-gradient(90deg, #4CAF50, #45a049);
-    border-radius: 4px;
+#loading-time {
+    font-size: 0.5rem;
+    color: #666666;
+    margin: 0rem;
+    font-family: monospace;
 }
 
 #letter-display {
@@ -206,7 +180,8 @@ label { display: block; margin-bottom: 0.5rem; }
   justify-content: center;
   gap: 0.4rem;
   min-height: 2rem;
-  margin: 0.6rem 0;
+  margin-top: 0rem;
+  margin-bottom: 0.9rem;
 }
 
 .loading-square {
@@ -299,11 +274,6 @@ label { display: block; margin-bottom: 0.5rem; }
   animation: shake-horizontal 350ms ease-in-out;
 }
 
-/* Firefox progress bar */
-#loading-progress::-moz-progress-bar {
-    background: linear-gradient(90deg, #4CAF50, #45a049);
-    border-radius: 4px;
-}
 .material-symbols-outlined {
   font-variation-settings:
   'FILL' 0,

@@ -66,7 +66,7 @@ async function saveAnagramMapAsBinary(anagramMap, fileName) {
     URL.revokeObjectURL(url);
 }
 
-function parseBinary(buffer) {
+async function parseBinary(buffer) {
     const view = new DataView(buffer);
     const decoder = new TextDecoder();
 
@@ -100,6 +100,11 @@ function parseBinary(buffer) {
         offset += arrLen * 4;
 
         map.set(key, arr);
+
+        // Yield periodically so loading timer can keep updating during heavy parsing.
+        if (i > 0 && i % 100000 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
     }
 
     return map;
@@ -107,7 +112,7 @@ function parseBinary(buffer) {
 
 async function loadAnagramMapFromBinary(fileName) {
     const buffer = await loadRawFileWithIndexedDbCache(fileName, 'arrayBuffer');
-    return parseBinary(buffer);
+    return await parseBinary(buffer);
 }
 
 async function loadAnagramMap() {

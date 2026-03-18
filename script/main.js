@@ -30,6 +30,51 @@ function updateLoadingProgress(percent) {
     if (pageProgress) pageProgress.value = percent;
 }
 
+let loadingStartTime = 0;
+let loadingTimerFrameId = null;
+
+function formatLoadingSeconds(ms) {
+    return `(${(ms / 1000).toFixed(1)}s)`;
+}
+
+function updateLoadingTimeDisplay(ms) {
+    const loadingTimeEl = document.getElementById('loading-time');
+    if (loadingTimeEl) {
+        loadingTimeEl.textContent = formatLoadingSeconds(ms);
+    }
+}
+
+function startLoadingTimer() {
+    loadingStartTime = performance.now();
+    updateLoadingTimeDisplay(0);
+
+    if (loadingTimerFrameId) {
+        cancelAnimationFrame(loadingTimerFrameId);
+    }
+
+    const tick = () => {
+        updateLoadingTimeDisplay(performance.now() - loadingStartTime);
+        loadingTimerFrameId = requestAnimationFrame(tick);
+    };
+
+    loadingTimerFrameId = requestAnimationFrame(tick);
+}
+
+function stopLoadingTimer() {
+    if (loadingTimerFrameId) {
+        cancelAnimationFrame(loadingTimerFrameId);
+        loadingTimerFrameId = null;
+    }
+
+    if (loadingStartTime > 0) {
+        const elapsedMs = performance.now() - loadingStartTime;
+        updateLoadingTimeDisplay(elapsedMs);
+        return elapsedMs;
+    }
+
+    return 0;
+}
+
 
 // --- routing support for SPA ------------------------------------------------
 
@@ -133,6 +178,9 @@ function getWordSet() {
 async function init() {
     // prepare SPA navigation
     setupNavigation();
+    startLoadingTimer();
+    // Let browser paint first timer frame before heavy dictionary work.
+    await new Promise(resolve => requestAnimationFrame(resolve));
     
     try {
         updateStatus('Wczytywanie słownika...');
@@ -140,6 +188,7 @@ async function init() {
         
         await getWordSet();
         updateLoadingProgress(100);
+        stopLoadingTimer();
         
         // Show completion message briefly before hiding
         await new Promise(r => setTimeout(r, 300));
@@ -148,6 +197,7 @@ async function init() {
         handleHashChange();
     } catch (err) {
         console.error(err);
+        stopLoadingTimer();
         updateStatus('Błąd przy wczytywaniu listy słów.');
         await new Promise(r => setTimeout(r, 800));
         hideLoadingScreen();
