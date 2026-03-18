@@ -30,7 +30,7 @@ async function loadProcessedDataFromLocalStorage() {
     }
 }
 
-async function downloadWordsFile(path = 'data/sjp-full/slowa.txt') {
+async function loadWordsFile(path = 'data/sjp-full/slowa.txt') {
     console.log('loadWordSet starting');
 
     // fetch text file from same directory; make sure slowa.txt is available
@@ -129,7 +129,7 @@ function getAnagramsForWord(anagramMap, anagramMapKey) {
 
 async function commonPartWithSjp() {
     const topWords = await loadCsvFile('pl_top_words.csv');
-    const words = await downloadWordsFile();
+    const words = await loadWordsFile();
     // convert topWords to a Set for faster lookup
     const topWordsSet = new Set(topWords.map(w => w.word));
     // filter the original word list to only include words that are in the topWordsSet
@@ -170,7 +170,7 @@ async function loadCsvFile(fileName) {
 }
 
 async function getProcessedWordFiles(filePath) {
-    const words = await downloadWordsFile(filePath);
+    const words = await loadWordsFile(filePath);
     const processedDataStruct = convertWordSetToProcessedData(words);
     await saveProcessedDataToLocalStorage(processedDataStruct);
 }

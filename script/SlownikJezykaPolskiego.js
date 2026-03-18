@@ -48,7 +48,7 @@ class SlownikJezykaPolskiego {
       this.onProgress = typeof onProgress === 'function' ? onProgress : null;
       this.progressCallback(progressValues[currentCommentIndex], comments[currentCommentIndex]);
 
-      const wordsPromise = downloadWordsFile(`${path}/slowa.txt`).then(wordsArray => {
+      const wordsPromise = loadWordsFile(`${path}/slowa.txt`).then(wordsArray => {
         currentCommentIndex++;
         this.progressCallback(progressValues[currentCommentIndex], comments[currentCommentIndex]);
         return wordsArray;
