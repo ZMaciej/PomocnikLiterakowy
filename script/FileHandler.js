@@ -1,3 +1,221 @@
+const FILE_CACHE_DB_NAME = 'PomocnikLiterakowyFileCache';
+const FILE_CACHE_DB_VERSION = 1;
+const FILE_CACHE_STORE_NAME = 'rawFiles';
+
+let fileCacheDbPromise = null;
+
+function logFileCacheEvent(filePath, message, details = null) {
+    if (details) {
+        console.log(`[FileCache] ${filePath}: ${message}`, details);
+        return;
+    }
+
+    console.log(`[FileCache] ${filePath}: ${message}`);
+}
+
+function parseUpdateDateText(text) {
+    const match = /^(\d{2}):(\d{2}) (\d{2})\.(\d{2})\.(\d{4})$/.exec(text.trim());
+    if (!match) {
+        return null;
+    }
+
+    const [, hours, minutes, day, month, year] = match;
+    const parsedDate = new Date(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hours),
+        Number(minutes),
+        0,
+        0
+    );
+
+    const timestamp = parsedDate.getTime();
+    return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function getDirectoryPath(filePath) {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    const lastSlashIndex = normalizedPath.lastIndexOf('/');
+    if (lastSlashIndex === -1) {
+        return '';
+    }
+    return normalizedPath.slice(0, lastSlashIndex);
+}
+
+function getUpdateDateFilePath(filePath) {
+    const directoryPath = getDirectoryPath(filePath);
+    return directoryPath ? `${directoryPath}/updateDate.txt` : 'updateDate.txt';
+}
+
+function openFileCacheDb() {
+    if (!('indexedDB' in window)) {
+        return Promise.resolve(null);
+    }
+
+    if (!fileCacheDbPromise) {
+        fileCacheDbPromise = new Promise(resolve => {
+            const request = indexedDB.open(FILE_CACHE_DB_NAME, FILE_CACHE_DB_VERSION);
+
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains(FILE_CACHE_STORE_NAME)) {
+                    db.createObjectStore(FILE_CACHE_STORE_NAME, { keyPath: 'path' });
+                }
+            };
+
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => {
+                console.error('Failed to open IndexedDB file cache', request.error);
+                resolve(null);
+            };
+        });
+    }
+
+    return fileCacheDbPromise;
+}
+
+async function clearIndexedDbFileCache() {
+    const db = await openFileCacheDb();
+    if (!db) {
+        console.warn('[FileCache] IndexedDB is not available; nothing to clear');
+        return false;
+    }
+
+    return new Promise(resolve => {
+        const transaction = db.transaction(FILE_CACHE_STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(FILE_CACHE_STORE_NAME);
+        const request = store.clear();
+
+        request.onsuccess = () => {
+            console.log('[FileCache] IndexedDB file cache cleared');
+            resolve(true);
+        };
+        request.onerror = () => {
+            console.error('[FileCache] Failed to clear IndexedDB file cache', request.error);
+            resolve(false);
+        };
+    });
+}
+
+window.clearIndexedDbFileCache = clearIndexedDbFileCache;
+
+async function readCachedFileRecord(filePath) {
+    const db = await openFileCacheDb();
+    if (!db) {
+        return null;
+    }
+
+    return new Promise(resolve => {
+        const transaction = db.transaction(FILE_CACHE_STORE_NAME, 'readonly');
+        const store = transaction.objectStore(FILE_CACHE_STORE_NAME);
+        const request = store.get(filePath);
+
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => {
+            console.error(`Failed to read ${filePath} from IndexedDB`, request.error);
+            resolve(null);
+        };
+    });
+}
+
+async function writeCachedFileRecord(filePath, content, updateDateMeta, responseType) {
+    const db = await openFileCacheDb();
+    if (!db) {
+        return;
+    }
+
+    const cacheContent = responseType === 'arrayBuffer' ? content.slice(0) : content;
+
+    return new Promise(resolve => {
+        const transaction = db.transaction(FILE_CACHE_STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(FILE_CACHE_STORE_NAME);
+        const request = store.put({
+            path: filePath,
+            content: cacheContent,
+            responseType,
+            updateDateText: updateDateMeta.text,
+            updateTimestamp: updateDateMeta.timestamp,
+            savedAt: Date.now()
+        });
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => {
+            console.error(`Failed to write ${filePath} to IndexedDB`, request.error);
+            resolve();
+        };
+    });
+}
+
+async function loadUpdateDateMeta(filePath) {
+    const updateDatePath = getUpdateDateFilePath(filePath);
+
+    try {
+        const resp = await fetch(updateDatePath, { cache: 'no-store' });
+        if (!resp.ok) {
+            return null;
+        }
+
+        const text = (await resp.text()).trim();
+        const timestamp = parseUpdateDateText(text);
+        if (timestamp === null) {
+            console.warn(`[FileCache] Invalid update date format in ${updateDatePath}: ${text}`);
+            return null;
+        }
+
+        return { text, timestamp };
+    } catch (e) {
+        console.warn(`[FileCache] Could not load ${updateDatePath}; bypassing IndexedDB cache`, e);
+        return null;
+    }
+}
+
+async function fetchRawFile(filePath, responseType) {
+    const resp = await fetch(filePath, { cache: 'no-store' });
+    if (!resp.ok) {
+        throw new Error(`Unable to fetch file: ${filePath}`);
+    }
+
+    if (responseType === 'arrayBuffer') {
+        return resp.arrayBuffer();
+    }
+
+    return resp.text();
+}
+
+async function loadRawFileWithIndexedDbCache(filePath, responseType) {
+    const updateDateMeta = await loadUpdateDateMeta(filePath);
+
+    if (!updateDateMeta) {
+        logFileCacheEvent(filePath, 'loaded from network; updateDate.txt missing or invalid, cache skipped');
+        return fetchRawFile(filePath, responseType);
+    }
+
+    const cachedRecord = await readCachedFileRecord(filePath);
+    if (
+        cachedRecord &&
+        cachedRecord.responseType === responseType &&
+        typeof cachedRecord.updateTimestamp === 'number' &&
+        cachedRecord.updateTimestamp >= updateDateMeta.timestamp
+    ) {
+        logFileCacheEvent(filePath, 'loaded from IndexedDB', {
+            cachedUpdateDate: cachedRecord.updateDateText,
+            requestedUpdateDate: updateDateMeta.text
+        });
+        return responseType === 'arrayBuffer'
+            ? cachedRecord.content.slice(0)
+            : cachedRecord.content;
+    }
+
+    const freshContent = await fetchRawFile(filePath, responseType);
+    await writeCachedFileRecord(filePath, freshContent, updateDateMeta, responseType);
+    logFileCacheEvent(filePath, 'loaded from network and saved to IndexedDB', {
+        previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
+        requestedUpdateDate: updateDateMeta.text
+    });
+    return freshContent;
+}
+
 async function loadProcessedDataFromLocalStorage() {
     try {
         const resp = await fetch('processedWordData.json');
@@ -33,33 +251,7 @@ async function loadProcessedDataFromLocalStorage() {
 async function loadWordsFile(path = 'data/sjp-full/slowa.txt') {
     console.log('loadWordSet starting');
 
-    // fetch text file from same directory; make sure slowa.txt is available
-    const resp = await fetch(path);
-    if (!resp.ok) {
-        throw new Error('Unable to fetch word list');
-    }
-
-    const reader = resp.body.getReader();
-    let received = 0;
-    let chunks = [];
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.length;
-    }
-
-    const decoder = new TextDecoder();
-    // combine chunks into single Uint8Array
-    let totalLen = 0;
-    for (const c of chunks) totalLen += c.length;
-    const combined = new Uint8Array(totalLen);
-    let offset = 0;
-    for (const c of chunks) {
-        combined.set(c, offset);
-        offset += c.length;
-    }
-    const text = decoder.decode(combined);
+    const text = await loadRawFileWithIndexedDbCache(path, 'text');
 
     // sanity check
     if (!text || !text.trim()) {
@@ -109,11 +301,8 @@ async function saveProcessedDataToLocalStorage(processedData) {
 
 async function loadFromJsonFile(fileName) {
     try {
-        const resp = await fetch(fileName);
-        if (!resp.ok) {
-            throw new Error(`Unable to fetch JSON file: ${fileName}`);
-        }
-        const data = await resp.json();
+        const rawJson = await loadRawFileWithIndexedDbCache(fileName, 'text');
+        const data = JSON.parse(rawJson);
         const returnObject = Object.assign(Object.create(null), data);
         console.log(`Loaded data from ${fileName}`);
         return returnObject;

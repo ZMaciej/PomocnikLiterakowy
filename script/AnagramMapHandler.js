@@ -106,11 +106,7 @@ function parseBinary(buffer) {
 }
 
 async function loadAnagramMapFromBinary(fileName) {
-    const resp = await fetch(fileName);
-    if (!resp.ok) {
-        throw new Error(`Unable to fetch binary file: ${fileName}`);
-    }
-    const buffer = await resp.arrayBuffer();
+    const buffer = await loadRawFileWithIndexedDbCache(fileName, 'arrayBuffer');
     return parseBinary(buffer);
 }
 
