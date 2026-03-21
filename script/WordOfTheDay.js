@@ -3,7 +3,18 @@ class WordOfTheDay {
         this.filePath = options.filePath || 'data/wotd-curses/definicje.txt';
         this.wordElementId = options.wordElementId || 'word-of-the-day-value';
         this.descriptionElementId = options.descriptionElementId || 'word-of-the-day-description';
+        this.calendarDayElementId = options.calendarDayElementId || 'word-of-the-day-calendar-day';
         this.entries = [];
+    }
+
+    renderCalendarDay(date = new Date()) {
+        const dayEl = document.getElementById(this.calendarDayElementId);
+        if (!dayEl) {
+            return;
+        }
+
+        const day = String(date.getDate()).padStart(2, '0');
+        dayEl.textContent = day;
     }
 
     async loadRawDefinitions() {
@@ -98,6 +109,8 @@ class WordOfTheDay {
     }
 
     async loadAndRender() {
+        this.renderCalendarDay();
+
         const rawText = await this.loadRawDefinitions();
         this.entries = this.parseEntries(rawText);
 
