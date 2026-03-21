@@ -53,13 +53,13 @@ class SlownikJezykaPolskiego {
         return wordsArray;
       });
 
-      const anagramMapPromise = loadAnagramMapFromBinary(`${path}/anagram_map.bin`).then(anagramMap => {
+      const anagramMapPromise = loadAnagramMapFromBinary(`${path}/anagram_map.bin`, wordsPromise).then(anagramMap => {
         currentCommentIndex++;
         this.progressCallback(progressValues[currentCommentIndex], comments[currentCommentIndex]);
         return anagramMap;
       });
 
-      const lengthKeysPromise = loadFromJsonFile(`${path}/lengthKeys.json`).then(lengthKeys => {
+      const lengthKeysPromise = loadLengthKeysFromJson(`${path}/lengthKeys.json`, anagramMapPromise).then(lengthKeys => {
         currentCommentIndex++;
         this.progressCallback(progressValues[currentCommentIndex], comments[currentCommentIndex]);
         return lengthKeys;

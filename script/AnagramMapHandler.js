@@ -110,8 +110,20 @@ async function parseBinary(buffer) {
     return map;
 }
 
-async function loadAnagramMapFromBinary(fileName) {
-    const buffer = await loadRawFileWithIndexedDbCache(fileName, 'arrayBuffer');
+async function buildAnagramMapFromWords(wordsPromise) {
+    if (!wordsPromise) {
+        throw new Error('Missing words promise for generated anagram map');
+    }
+
+    const words = await wordsPromise;
+    return (await generateAnagramMapFromWords(words));
+}
+
+async function loadAnagramMapFromBinary(fileName, wordsPromise = null) {
+    const buffer = await loadRawFileWithIndexedDbCacheOrGenerate(fileName, 'arrayBuffer', async () => {
+        const anagramMap = await buildAnagramMapFromWords(wordsPromise);
+        return buildBinary(anagramMap);
+    });
     return await parseBinary(buffer);
 }
 

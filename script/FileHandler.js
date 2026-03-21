@@ -147,6 +147,19 @@ async function writeCachedFileRecord(filePath, content, updateDateMeta, response
     });
 }
 
+function cloneCachedContent(content, responseType) {
+    return responseType === 'arrayBuffer' ? content.slice(0) : content;
+}
+
+function isCachedRecordFresh(cachedRecord, responseType, updateDateMeta) {
+    return !!(
+        cachedRecord &&
+        cachedRecord.responseType === responseType &&
+        typeof cachedRecord.updateTimestamp === 'number' &&
+        cachedRecord.updateTimestamp >= updateDateMeta.timestamp
+    );
+}
+
 async function loadUpdateDateMeta(filePath) {
     const updateDatePath = getUpdateDateFilePath(filePath);
 
@@ -173,7 +186,7 @@ async function loadUpdateDateMeta(filePath) {
 async function fetchRawFile(filePath, responseType) {
     const resp = await fetch(filePath, { cache: 'no-store' });
     if (!resp.ok) {
-        throw new Error(`Unable to fetch file: ${filePath}`);
+        throw new Error(`Unable to fetch file: ${filePath} (status ${resp.status})`);
     }
 
     if (responseType === 'arrayBuffer') {
@@ -183,37 +196,61 @@ async function fetchRawFile(filePath, responseType) {
     return resp.text();
 }
 
-async function loadRawFileWithIndexedDbCache(filePath, responseType) {
+async function loadRawFileWithIndexedDbCacheOrGenerate(filePath, responseType, generateContent = null) {
     const updateDateMeta = await loadUpdateDateMeta(filePath);
 
-    if (!updateDateMeta) {
+    if (updateDateMeta) {
+        const cachedRecord = await readCachedFileRecord(filePath);
+        if (isCachedRecordFresh(cachedRecord, responseType, updateDateMeta)) {
+            logFileCacheEvent(filePath, 'loaded from IndexedDB', {
+                cachedUpdateDate: cachedRecord.updateDateText,
+                requestedUpdateDate: updateDateMeta.text
+            });
+            return cloneCachedContent(cachedRecord.content, responseType);
+        }
+
+        try {
+            const freshContent = await fetchRawFile(filePath, responseType);
+            await writeCachedFileRecord(filePath, freshContent, updateDateMeta, responseType);
+            logFileCacheEvent(filePath, 'loaded from network and saved to IndexedDB', {
+                previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
+                requestedUpdateDate: updateDateMeta.text
+            });
+            return freshContent;
+        } catch (error) {
+            if (typeof generateContent !== 'function') {
+                throw error;
+            }
+
+            const generatedContent = await generateContent(error);
+            await writeCachedFileRecord(filePath, generatedContent, updateDateMeta, responseType);
+            logFileCacheEvent(filePath, 'generated locally and saved to IndexedDB', {
+                previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
+                requestedUpdateDate: updateDateMeta.text,
+                reason: error.message
+            });
+            return cloneCachedContent(generatedContent, responseType);
+        }
+    }
+
+    try {
         logFileCacheEvent(filePath, 'loaded from network; updateDate.txt missing or invalid, cache skipped');
-        return fetchRawFile(filePath, responseType);
-    }
+        return await fetchRawFile(filePath, responseType);
+    } catch (error) {
+        if (typeof generateContent !== 'function') {
+            throw error;
+        }
 
-    const cachedRecord = await readCachedFileRecord(filePath);
-    if (
-        cachedRecord &&
-        cachedRecord.responseType === responseType &&
-        typeof cachedRecord.updateTimestamp === 'number' &&
-        cachedRecord.updateTimestamp >= updateDateMeta.timestamp
-    ) {
-        logFileCacheEvent(filePath, 'loaded from IndexedDB', {
-            cachedUpdateDate: cachedRecord.updateDateText,
-            requestedUpdateDate: updateDateMeta.text
+        const generatedContent = await generateContent(error);
+        logFileCacheEvent(filePath, 'generated locally; updateDate.txt missing or invalid, cache skipped', {
+            reason: error.message
         });
-        return responseType === 'arrayBuffer'
-            ? cachedRecord.content.slice(0)
-            : cachedRecord.content;
+        return cloneCachedContent(generatedContent, responseType);
     }
+}
 
-    const freshContent = await fetchRawFile(filePath, responseType);
-    await writeCachedFileRecord(filePath, freshContent, updateDateMeta, responseType);
-    logFileCacheEvent(filePath, 'loaded from network and saved to IndexedDB', {
-        previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
-        requestedUpdateDate: updateDateMeta.text
-    });
-    return freshContent;
+async function loadRawFileWithIndexedDbCache(filePath, responseType) {
+    return loadRawFileWithIndexedDbCacheOrGenerate(filePath, responseType);
 }
 
 async function splitWordsWithUiYield(text) {
@@ -268,6 +305,43 @@ async function loadWordsFile(path = 'data/sjp-full/slowa.txt') {
     return words;
 }
 
+async function generateAnagramMapFromWords(words) {
+    const wordsArray = new Array();
+    const anagramMap = {};
+
+    for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        wordsArray.push(w);
+        const key = w.split('').sort().join('');
+        (anagramMap[key] ??= []).push(i);
+
+        if (i % 100000 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+    return anagramMap;
+}
+
+async function buildLengthKeysFromAnagramMap(anagramMap) {
+    const lengthKeys = Object.create(null);
+    let indexOfKeyInMap = 0;
+
+    for (const key of anagramMap.keys()) {
+        const len = key.length;
+        if (!lengthKeys[len]) {
+            lengthKeys[len] = [];
+        }
+        lengthKeys[len].push(indexOfKeyInMap);
+        indexOfKeyInMap++;
+
+        if (indexOfKeyInMap % 100000 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+
+    return lengthKeys;
+}
+
 function convertWordSetToProcessedData(words) {
     // build a dictionary mapping sorted letter sequences to word lists
 
@@ -275,7 +349,7 @@ function convertWordSetToProcessedData(words) {
     const anagramMap = {};
 
     for (let i = 0; i < words.length; i++) {
-        w = words[i];
+        const w = words[i];
         wordsArray.push(w);
         const key = w.split('').sort().join('');
         (anagramMap[key] ??= []).push(i);
@@ -316,8 +390,25 @@ async function loadFromJsonFile(fileName) {
     }
 }
 
-function getAnagramsForWord(anagramMap, anagramMapKey) {
-    return anagramMap[anagramMapKey] || [];
+async function loadLengthKeysFromJson(fileName, anagramMapPromise = null) {
+    try {
+        const rawJson = await loadRawFileWithIndexedDbCacheOrGenerate(fileName, 'text', async () => {
+            if (!anagramMapPromise) {
+                throw new Error(`Missing anagram map promise for generated file: ${fileName}`);
+            }
+
+            const anagramMap = await anagramMapPromise;
+            const lengthKeys = await buildLengthKeysFromAnagramMap(anagramMap);
+            return JSON.stringify(lengthKeys);
+        });
+        const data = JSON.parse(rawJson);
+        const returnObject = Object.assign(Object.create(null), data);
+        console.log(`Loaded data from ${fileName}`);
+        return returnObject;
+    } catch (e) {
+        console.error(`Error loading JSON file ${fileName}`, e);
+        return null;
+    }
 }
 
 async function commonPartWithSjp() {
