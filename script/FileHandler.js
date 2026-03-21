@@ -197,6 +197,7 @@ async function fetchRawFile(filePath, responseType) {
 }
 
 async function loadRawFileWithIndexedDbCacheOrGenerate(filePath, responseType, generateContent = null) {
+    const canGenerate = typeof generateContent === 'function';
     const updateDateMeta = await loadUpdateDateMeta(filePath);
 
     if (updateDateMeta) {
@@ -209,44 +210,33 @@ async function loadRawFileWithIndexedDbCacheOrGenerate(filePath, responseType, g
             return cloneCachedContent(cachedRecord.content, responseType);
         }
 
-        try {
-            const freshContent = await fetchRawFile(filePath, responseType);
-            await writeCachedFileRecord(filePath, freshContent, updateDateMeta, responseType);
-            logFileCacheEvent(filePath, 'loaded from network and saved to IndexedDB', {
-                previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
-                requestedUpdateDate: updateDateMeta.text
-            });
-            return freshContent;
-        } catch (error) {
-            if (typeof generateContent !== 'function') {
-                throw error;
-            }
-
-            const generatedContent = await generateContent(error);
+        if (canGenerate) {
+            const generatedContent = await generateContent();
             await writeCachedFileRecord(filePath, generatedContent, updateDateMeta, responseType);
             logFileCacheEvent(filePath, 'generated locally and saved to IndexedDB', {
                 previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
-                requestedUpdateDate: updateDateMeta.text,
-                reason: error.message
+                requestedUpdateDate: updateDateMeta.text
             });
             return cloneCachedContent(generatedContent, responseType);
         }
+
+        const freshContent = await fetchRawFile(filePath, responseType);
+        await writeCachedFileRecord(filePath, freshContent, updateDateMeta, responseType);
+        logFileCacheEvent(filePath, 'loaded from network and saved to IndexedDB', {
+            previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
+            requestedUpdateDate: updateDateMeta.text
+        });
+        return freshContent;
     }
 
-    try {
-        logFileCacheEvent(filePath, 'loaded from network; updateDate.txt missing or invalid, cache skipped');
-        return await fetchRawFile(filePath, responseType);
-    } catch (error) {
-        if (typeof generateContent !== 'function') {
-            throw error;
-        }
-
-        const generatedContent = await generateContent(error);
-        logFileCacheEvent(filePath, 'generated locally; updateDate.txt missing or invalid, cache skipped', {
-            reason: error.message
-        });
+    if (canGenerate) {
+        const generatedContent = await generateContent();
+        logFileCacheEvent(filePath, 'generated locally; updateDate.txt unavailable, not cached');
         return cloneCachedContent(generatedContent, responseType);
     }
+
+    logFileCacheEvent(filePath, 'loaded from network; updateDate.txt missing or invalid, cache skipped');
+    return fetchRawFile(filePath, responseType);
 }
 
 async function loadRawFileWithIndexedDbCache(filePath, responseType) {
