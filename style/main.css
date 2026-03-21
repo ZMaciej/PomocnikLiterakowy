@@ -189,7 +189,7 @@ label { display: block; margin-bottom: 0.5rem; }
   height: 0.9rem;
   border-radius: 3px;
   display: inline-block;
-  animation: loading-square-bounce 1s ease-in-out infinite;
+  animation: loading-square-bounce 1.5s ease-in-out infinite;
 }
 
 .loading-square-yellow {
@@ -201,27 +201,28 @@ label { display: block; margin-bottom: 0.5rem; }
 .loading-square-green {
   background-color: var(--tile-green);
   border: 1px solid var(--tile-green-border);
-  animation-delay: 0.15s;
+  animation-delay: 0.2s;
 }
 
 .loading-square-blue {
   background-color: var(--tile-blue);
   border: 1px solid var(--tile-blue-border);
-  animation-delay: 0.3s;
+  animation-delay: 0.4s;
 }
 
 .loading-square-red {
   background-color: var(--tile-red);
   border: 1px solid var(--tile-red-border);
-  animation-delay: 0.45s;
+  animation-delay: 0.6s;
 }
 
 @keyframes loading-square-bounce {
   0%,
+  40%,
   100% {
     transform: translateY(0);
   }
-  50% {
+  15% {
     transform: translateY(-10px);
   }
 }
