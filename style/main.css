@@ -41,6 +41,39 @@ nav button { margin-right: 0.5rem; }
 label { display: block; margin-bottom: 0.5rem; }
 #output { margin-top: 1rem; padding: 0.5rem; border: 1px solid #ccc; min-height: 1.5em; }
 
+.navigation-btn {
+  background-color: #ececec;
+  border-color: #ececec;
+  border-radius: 0.5rem 0.5rem 0 0;
+  padding: 0.2rem 0.4rem;
+  position: relative;
+}
+
+.navigation-btn:hover {
+    background-color: #e0e0e0;
+}
+.navigation-btn:active {
+    background-color: #d0d0d0;
+}
+.navigation-btn.chosen {
+  /* background-color: #ececec;
+  border-color: #ececec; */
+  border-radius: 0.5rem 0.5rem 0 0;
+  color: var(--tile-green-border);
+  border: 1px solid var(--tile-green-border);
+  background: #f5f5f5;
+}
+
+.navigation-btn.chosen::after {
+  content: "";
+  position: absolute;
+  left: -0.5px;
+  right: -0.5px;
+  bottom: -0.15rem;
+  height: 0.15rem;
+  background-color: var(--tile-green-border);
+}
+
 #title {
   /* center the text */
   text-align: center;
@@ -238,7 +271,11 @@ label { display: block; margin-bottom: 0.5rem; }
     border: 1px solid #333;
     border-radius: 4px;
     cursor: grab;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
     background: #fff;
     transition: transform 0.1s, opacity 0.1s;
     font-size: 1.2rem;
@@ -307,7 +344,7 @@ label { display: block; margin-bottom: 0.5rem; }
   align-items: center;
 }
 
-.chosen {
+.letter-count-button.chosen {
   color: var(--tile-green-border);
   border: 1px solid var(--tile-green-border);
   background: var(--tile-green);

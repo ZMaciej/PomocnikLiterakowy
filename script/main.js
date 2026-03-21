@@ -75,71 +75,13 @@ function stopLoadingTimer() {
     return 0;
 }
 
-
-// --- routing support for SPA ------------------------------------------------
-
-async function showSection(name) {
-    const sections = document.querySelectorAll('.page-section');
-    sections.forEach(s => s.style.display = s.id === name + '-section' ? '' : 'none');
-    updateGameModeUI();
-    if (name === 'game') {
-        if (gifModeActive) {
-            normalGameStats.totalFound = 99;
-            normalGameStats.totalSolutions = 99;
-            updateGameModeUI();
-            await startGame();
-            gameState.letters = 'ukcharz';
-            gameState.solutions = ['kucharz'];
-            gameState.count = 7;
-            renderLetterTiles();
-            gifModeActive = false;
-        }
-        // only initialize game once; subsequent navigations keep current state
-        if (!gameState.letters) {
-            // start game loading in background (don't block section display)
-            startGame().catch(err => console.error('Game initialization failed:', err));
-        }
-    }
-}
-
-function navigateTo(name) {
-    // redirect any "home" requests to the check page as it's now the landing screen
-    if (name === 'home') name = 'game';
-    location.hash = name;
-    showSection(name);
-}
-
-function handleHashChange() {
-    const hashes = location.hash.replace(/^#/, '').split('&');
-    const hash = hashes[0];
-    if (hashes.length > 1 && hashes[1] === 'oneHundredGift') {
-        gifModeActive = true;
-    }
-    if (!hash) return navigateTo('game');
-    if (['check','game'].includes(hash)) {
-        showSection(hash);
-    } else {
-        navigateTo('game');
-    }
-}
-
-let gifModeActive = false;
-
-window.addEventListener('hashchange', handleHashChange);
-
-// wire nav buttons once DOM ready
-let navigationSetup = false;
-function setupNavigation() {
-    if (navigationSetup) return;
-    navigationSetup = true;
-    // "home" button now acts as the check page link
-    const btnCheck = document.getElementById('btn-check');
-    const btnGame = document.getElementById('btn-game');
-    if (btnCheck) btnCheck.addEventListener('click', () => navigateTo('check'));
-    if (btnGame) btnGame.addEventListener('click', () => navigateTo('game'));
-}
-
-// --- end routing support -----------------------------------------------------
+const navigationHandler = new NavigationHandler({
+    updateGameModeUI,
+    startGame,
+    renderLetterTiles,
+    getGameState: () => gameState,
+    getNormalGameStats: () => normalGameStats
+});
 
 async function loadWordSet() {
     const progressCallback = ({percent, message}) => {
@@ -201,7 +143,7 @@ async function initializeWordOfTheDay() {
 // preload word set immediately on page load so status updates are independent
 async function init() {
     // prepare SPA navigation
-    setupNavigation();
+    navigationHandler.setup();
     startLoadingTimer();
     // Let browser paint first timer frame before heavy dictionary work.
     await new Promise(resolve => requestAnimationFrame(resolve));
@@ -222,14 +164,14 @@ async function init() {
         await new Promise(r => setTimeout(r, 300));
         hideLoadingScreen();
         // Initialize route AFTER hiding overlay
-        handleHashChange();
+        navigationHandler.handleHashChange();
     } catch (err) {
         console.error(err);
         stopLoadingTimer();
         updateStatus('Błąd przy wczytywaniu listy słów.');
         await new Promise(r => setTimeout(r, 800));
         hideLoadingScreen();
-        handleHashChange();
+        navigationHandler.handleHashChange();
     }
 }
 
@@ -402,7 +344,7 @@ function updateGameModeUI() {
     const isOnGameSection = gameSection ? gameSection.style.display !== 'none' : false;
     const timerValue = document.getElementById('timer-value');
     const pointsValue = document.getElementById('points');
-    const countButtons = document.querySelectorAll('#letter-count-button button');
+    const countButtons = document.querySelectorAll('#letter-count-buttons button');
 
     if (startedControls) startedControls.classList.toggle('hidden', !gameOfDayState.active || !isOnGameSection);
     if (pointsPanel) pointsPanel.classList.toggle('hidden', !isOnGameSection);

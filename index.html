@@ -44,8 +44,9 @@
     </div>
 
     <nav>
-        <button id="btn-game">Ułóż słowo</button>
-        <button id="btn-check">Istnieje czy nic?</button>
+        <button id="btn-game" class="navigation-btn">Ułóż słowo</button>
+        <button id="btn-check" class="navigation-btn">Istnieje czy nic?</button>
+        <button id="btn-stats" class="navigation-btn">Statsy</button>
     </nav>
 
     <!-- loading overlay shown during initial dictionary load -->
@@ -82,12 +83,12 @@
           </div>
       </div>
       <div class="controls">
-        <div id="letter-count-button" style="display:inline-block; margin-left:0.5rem;">
+        <div id="letter-count-buttons" style="display:inline-block; margin-left:0.5rem;">
             Liczba liter:
-            <button id="button-6">6</button>
-            <button class="chosen" id="button-7">7</button>
-            <button id="button-8">8</button>
-            <button id="button-9">9</button>
+            <button class="letter-count-button" id="button-6">6</button>
+            <button class="letter-count-button chosen" id="button-7">7</button>
+            <button class="letter-count-button" id="button-8">8</button>
+            <button class="letter-count-button" id="button-9">9</button>
         </div>
         <button id="next-button">
             <div id="next">
@@ -112,6 +113,9 @@
           <div id="guess-list"></div>
       </div>
       <button id="give-up-button" style="position: fixed; bottom: 1rem; left: 1rem;">poddaję się - pokaż wszystko</button>
+    </section>
+    <section id="stats-section">
+      
     </section>
 
     <div id="game-of-day-overlay" class="hidden">
@@ -153,6 +157,7 @@
     <script src="script/FileHandler.js" defer></script>
     <script src="script/RandomControl.js" defer></script>
     <script src="script/WordOfTheDay.js" defer></script>
+    <script src="script/NavigationHandler.js" defer></script>
     <script src="script/main.js" defer></script>
 </body>
 </html>
