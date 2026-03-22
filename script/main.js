@@ -128,7 +128,7 @@ async function initializeWordOfTheDay() {
 
     if (!wordOfTheDayController) {
         wordOfTheDayController = new WordOfTheDay({
-            filePath: 'data/wotd-curses/definicje.txt',
+            filePath: 'data/wotd-most-points/definicje.txt',
             wordElementId: 'word-of-the-day-value',
             descriptionElementId: 'word-of-the-day-description'
         });

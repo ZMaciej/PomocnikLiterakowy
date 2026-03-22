@@ -1,6 +1,6 @@
 class WordOfTheDay {
     constructor(options = {}) {
-        this.filePath = options.filePath || 'data/wotd-curses/definicje.txt';
+        this.filePath = options.filePath || 'data/wotd-most-points/definicje.txt';
         this.wordElementId = options.wordElementId || 'word-of-the-day-value';
         this.descriptionElementId = options.descriptionElementId || 'word-of-the-day-description';
         this.calendarDayElementId = options.calendarDayElementId || 'word-of-the-day-calendar-day';
