@@ -9,7 +9,8 @@ class NavigationHandler {
         this.buttonIds = {
             check: buttonIds.check || 'btn-check',
             game: buttonIds.game || 'btn-game',
-            stats: buttonIds.stats || 'btn-stats'
+            stats: buttonIds.stats || 'btn-stats',
+            bots: buttonIds.bots || 'btn-bots'
         };
         this.gifModeActive = false;
         this.isSetup = false;
@@ -19,7 +20,8 @@ class NavigationHandler {
         const buttonMap = {
             check: this.buttonIds.check,
             game: this.buttonIds.game,
-            stats: this.buttonIds.stats
+            stats: this.buttonIds.stats,
+            bots: this.buttonIds.bots
         };
 
         const activeButtonId = buttonMap[name];
@@ -83,7 +85,7 @@ class NavigationHandler {
             this.gifModeActive = true;
         }
         if (!hash) return this.navigateTo('game');
-        if (['check', 'game', 'stats'].includes(hash)) {
+        if (['check', 'game', 'stats', 'bots'].includes(hash)) {
             this.showSection(hash);
         } else {
             this.navigateTo('game');
@@ -98,9 +100,12 @@ class NavigationHandler {
         const btnGame = document.getElementById(this.buttonIds.game);
         const btnStats = document.getElementById(this.buttonIds.stats);
 
+        const btnBots = document.getElementById(this.buttonIds.bots);
+
         if (btnCheck) btnCheck.addEventListener('click', () => this.navigateTo('check'));
         if (btnGame) btnGame.addEventListener('click', () => this.navigateTo('game'));
         if (btnStats) btnStats.addEventListener('click', () => this.navigateTo('stats'));
+        if (btnBots) btnBots.addEventListener('click', () => this.navigateTo('bots'));
 
         window.addEventListener('hashchange', () => this.handleHashChange());
     }

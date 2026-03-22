@@ -18,12 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tsparticles/confetti@3.0.3/tsparticles.confetti.bundle.min.js"></script>
 </head>
 <body>
-    <div id="header-panel" style="width: 100%;">
-        <div id="started-game-controls" class="hidden">
-            <span id="timer-value">00:00</span>
-            <button id="stop-game">❌</button>
-        </div>
-        <button id="game-of-the-day" class="hidden">gra dnia</button>
+    <div id="header-panel">
         <div id="title">
           <span id="title-main">Pomocnik Literakowy</span>
           <div class="title-kids hidden">
@@ -37,16 +32,13 @@
               s</span>
           </div>
         </div>
-        <div id="points-panel" class="hidden">
-            <span id="recent-difference">0</span>
-            <span id="points">0</span>
-        </div>
     </div>
 
     <nav>
         <button id="btn-game" class="navigation-btn">Ułóż słowo</button>
         <button id="btn-check" class="navigation-btn">Istnieje czy nic?</button>
         <button id="btn-stats" class="navigation-btn">Statsy</button>
+        <button id="btn-bots" class="navigation-btn">Boty</button>
     </nav>
 
     <!-- loading overlay shown during initial dictionary load -->
@@ -71,6 +63,17 @@
     </section>
 
     <section id="game-section" class="page-section" style="display:none;">
+      <div id="game-options">
+        <div id="started-game-controls" class="hidden">
+            <span id="timer-value">00:00</span>
+            <button id="stop-game">❌</button>
+        </div>
+        <button id="game-of-the-day" class="hidden">gra dnia</button>
+        <div id="points-panel" class="hidden">
+            <span id="recent-difference">0</span>
+            <span id="points">0</span>
+        </div>
+      </div>
       <div id="word-of-the-day">
           <div class="word-of-the-day-image-wrapper">
             <img src="pingwinPixelKalendarz.png" alt="Kalendarz słowa dnia">
@@ -114,8 +117,11 @@
       </div>
       <button id="give-up-button" style="position: fixed; bottom: 1rem; left: 1rem;">poddaję się - pokaż wszystko</button>
     </section>
-    <section id="stats-section">
-      
+    <section id="stats-section" class="page-section" style="display:none;">
+      Tu będą statsy
+    </section>
+    <section id="bots-section" class="page-section" style="display:none;">
+      Tu będą boty
     </section>
 
     <div id="game-of-day-overlay" class="hidden">
