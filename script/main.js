@@ -880,7 +880,7 @@ async function handleGuess(guess) {
             correctSection.classList.add('hidden');
         }
         confettiSeries();
-        if (gameOfDayState.active && gameState.found.size === gameState.solutions.length) {
+        if (gameState.found.size === gameState.solutions.length) {
             const count = gameState.count || 7;
             try {
                 const sjp = await getWordSet();

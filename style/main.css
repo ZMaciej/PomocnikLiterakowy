@@ -9,6 +9,12 @@
     --tile-red-border: #b93f26;
 }
 
+  @media (min-width: 1024px) {
+    html {
+      zoom: 1.75;
+    }
+  }
+
 body {
     font-family: 'Poppins', sans-serif;
     margin: 2rem;
