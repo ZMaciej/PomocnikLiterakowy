@@ -468,7 +468,7 @@ label { display: block; margin-bottom: 0.5rem; }
   flex-direction: column;
 }
 #next-button{
-  margin-left: 1.2rem;
+  margin-right: 0;
 }
 #next {
   display: flex;
@@ -487,15 +487,19 @@ label { display: block; margin-bottom: 0.5rem; }
   align-items: center;
 }
 
+#game-top-controls {
+  width: min(100%, 17rem);
+  justify-content: space-between;
+}
+
 #letter-count-header {
   font-size: 0.6rem;
   color: #333333;
-  margin-right: 0.7rem;
+  margin-right: 0.2rem;
 }
 
 #letter-count-buttons {
   display:inline-block;
-  margin-left:0.5rem;
 }
 
 .letter-count-button.chosen {
@@ -507,6 +511,7 @@ label { display: block; margin-bottom: 0.5rem; }
 }
 
 #possible-count {
+  color: #333333;
   font-size: 0.6rem;
   align-self: flex-start;
   margin: 0rem;
@@ -514,7 +519,7 @@ label { display: block; margin-bottom: 0.5rem; }
   margin-top: 0.2rem;
   margin-left: 0.4rem;
   display: flex;
-  direction: row;
+  flex-direction: row;
   align-items: center;
   -webkit-user-select: none;
   -moz-user-select: none;
