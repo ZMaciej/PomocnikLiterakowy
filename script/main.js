@@ -718,6 +718,12 @@ let draggingIndex = null;
 let floatingEl = null;
 let tileElements = []; // cache of tile elements for efficient updates during drag
 
+function getDocumentZoomFactor() {
+    const zoomValue = window.getComputedStyle(document.documentElement).zoom;
+    const parsed = Number.parseFloat(zoomValue);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
 // helper to swap letters in gameState and update display
 function swapLetters(i, j) {
     const arr = gameState.letters.split('');
@@ -760,9 +766,10 @@ function tilePointerDown(e) {
 
 function moveFloating(e) {
     if (!floatingEl) return;
+    const zoom = getDocumentZoomFactor();
     // position centered under pointer
-    const x = e.pageX - floatingEl.offsetWidth / 2;
-    const y = e.pageY - floatingEl.offsetHeight / 2;
+    const x = (e.pageX / zoom) - floatingEl.offsetWidth / 2;
+    const y = (e.pageY / zoom) - floatingEl.offsetHeight / 2;
     floatingEl.style.left = x + 'px';
     floatingEl.style.top = y + 'px';
 }
