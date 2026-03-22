@@ -297,13 +297,6 @@ label { display: block; margin-bottom: 0.5rem; }
     display: none;
 }
 
-#give-up-button {
-    position: fixed;
-    bottom: 1rem;
-    left: 1rem;
-    z-index: 999;
-}
-
 /* loading overlay */
 #loading-overlay {
     font-size: 1.1rem;
