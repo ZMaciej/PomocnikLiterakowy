@@ -345,7 +345,7 @@ function formatTimer(seconds) {
 function updateGameModeUI() {
     const startedControls = document.getElementById('started-game-controls');
     const pointsPanel = document.getElementById('points-panel');
-    const gameOfDayBtn = document.getElementById('game-of-the-day');
+    const gameOfDayBtn = document.getElementById('game-of-the-day-button');
     const gameSection = document.getElementById('game-section');
     const isOnGameSection = gameSection ? gameSection.style.display !== 'none' : false;
     const timerValue = document.getElementById('timer-value');
@@ -1041,7 +1041,7 @@ function setupGameControls() {
         });
     }
 
-    const gameOfDayBtn = document.getElementById('game-of-the-day');
+    const gameOfDayBtn = document.getElementById('game-of-the-day-button');
     if (gameOfDayBtn) {
         gameOfDayBtn.addEventListener('click', async () => {
             try {

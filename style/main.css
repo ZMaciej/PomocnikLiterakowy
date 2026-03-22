@@ -21,6 +21,7 @@ body {
   flex-direction: column;
   align-items: center;
   margin: 0rem;
+  margin-top: 1.2rem;
 }
 
 button {
@@ -205,7 +206,7 @@ label { display: block; margin-bottom: 0.5rem; }
 #title {
   /* center the text */
   text-align: center;
-  font-size: 1rem;
+  font-size: 0.7rem;
   font-weight: bold;
   margin: 1rem 0rem;
   text-wrap: balance;
@@ -255,13 +256,13 @@ label { display: block; margin-bottom: 0.5rem; }
   display: flex;
   justify-content: end;
   gap: 0.35rem;
-  width: 5rem;
-  font-size: 1rem;
+  width: 4rem;
+  font-size: 0.6rem;
 }
 
 #started-game-controls.hidden,
 #points-panel.hidden,
-#game-of-the-day.hidden,
+#game-of-the-day-button.hidden,
 #game-of-day-overlay.hidden {
   display: none;
 }
@@ -269,14 +270,15 @@ label { display: block; margin-bottom: 0.5rem; }
   display: none;
 }
 
-#game-of-the-day {
+#game-of-the-day-button {
   display: flex;
   flex-direction: column;
   align-self: center;
   align-content: center;
-  width: 5rem;
+  width: 4rem;
   gap: 0.5rem;
   padding: .1rem 0rem;
+  font-size: 0.6rem;
 }
 
 /* frame around correct answers */
@@ -412,16 +414,16 @@ label { display: block; margin-bottom: 0.5rem; }
     border: 1px solid #333;
     border-radius: 4px;
     cursor: grab;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
     background: #fff;
     transition: transform 0.1s, opacity 0.1s;
     font-size: 1.2rem;
     font-weight: normal;
     box-sizing: border-box;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
     touch-action: none;
 }
 
@@ -485,6 +487,17 @@ label { display: block; margin-bottom: 0.5rem; }
   align-items: center;
 }
 
+#letter-count-header {
+  font-size: 0.6rem;
+  color: #333333;
+  margin-right: 0.7rem;
+}
+
+#letter-count-buttons {
+  display:inline-block;
+  margin-left:0.5rem;
+}
+
 .letter-count-button.chosen {
   color: var(--tile-green-border);
   border: 1px solid var(--tile-green-border);
@@ -503,6 +516,12 @@ label { display: block; margin-bottom: 0.5rem; }
   display: flex;
   direction: row;
   align-items: center;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
 }
 
 #solution-count {
@@ -546,7 +565,7 @@ label { display: block; margin-bottom: 0.5rem; }
   cursor: pointer;
   margin: 0rem;
   padding: 0rem;
-  font-size: 16px;
+  font-size: 0.5rem;
 }
 
 .green {
