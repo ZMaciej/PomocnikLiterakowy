@@ -78,6 +78,130 @@ label { display: block; margin-bottom: 0.5rem; }
   background-color: var(--tile-green-border);
 }
 
+#stats-section {
+  width: min(100%, 68rem);
+}
+
+.stats-title {
+  margin: 0.2rem 0 0.7rem;
+}
+
+.stats-controls {
+  border: 1px solid #dcdcdc;
+  border-radius: 8px;
+  padding: 0.6rem;
+  background: #fafafa;
+}
+
+.stats-controls-top {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.stats-length-label {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.stats-length-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr));
+  gap: 0.35rem;
+}
+
+.stats-length-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0;
+  font-size: 0.8rem;
+}
+
+.stats-status {
+  min-height: 1.2rem;
+  font-size: 0.75rem;
+  color: #4a4a4a;
+  margin: 0.5rem 0 0;
+}
+
+.stats-results {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.stats-block {
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  padding: 0.7rem;
+  background: #ffffff;
+}
+
+.stats-block h4 {
+  margin: 0 0 0.5rem;
+}
+
+.stats-panel {
+  border-top: 1px dashed #e5e5e5;
+  padding-top: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.stats-panel-title {
+  margin: 0 0 0.4rem;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.stats-table th,
+.stats-table td {
+  border-bottom: 1px solid #ececec;
+  padding: 0.25rem;
+  text-align: left;
+}
+
+.stats-simple-list {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 0.75rem;
+}
+
+.stats-two-columns,
+.stats-three-columns {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.stats-two-columns {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.stats-three-columns {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.stats-two-columns h5,
+.stats-three-columns h5 {
+  margin: 0 0 0.25rem;
+}
+
+@media (max-width: 700px) {
+  .stats-controls {
+    padding: 0.45rem;
+  }
+
+  .stats-table {
+    font-size: 0.7rem;
+  }
+}
+
 #title {
   /* center the text */
   text-align: center;
@@ -132,7 +256,7 @@ label { display: block; margin-bottom: 0.5rem; }
   justify-content: end;
   gap: 0.35rem;
   width: 5rem;
-  font-size: 0.8rem;
+  font-size: 1rem;
 }
 
 #started-game-controls.hidden,

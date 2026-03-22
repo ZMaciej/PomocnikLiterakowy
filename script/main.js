@@ -117,6 +117,7 @@ function getWordSet() {
 }
 
 let wordOfTheDayController = null;
+let statsViewController = null;
 
 async function initializeWordOfTheDay() {
     const wordEl = document.getElementById('word-of-the-day-value');
@@ -156,6 +157,11 @@ async function init() {
             getWordSet(),
             initializeWordOfTheDay()
         ]);
+
+        if (!statsViewController && typeof StatsView === 'function') {
+            statsViewController = new StatsView({ getWordSet });
+            statsViewController.setup();
+        }
         
         updateLoadingProgress(100);
         stopLoadingTimer();
@@ -321,9 +327,9 @@ function shuffleArray(arr, rng) {
 async function startGame() {
     // ensure words are loaded first
     try {
-        const wordData = await getWordSet();
+        const sjp = await getWordSet();
         const count = gameState.count || 7;
-        await newGame(wordData, count);
+        await newGame(sjp, count);
     } catch (e) {
         console.error('Cannot start game', e);
     }
@@ -892,8 +898,8 @@ async function handleGuess(guess) {
         if (gameOfDayState.active && gameState.found.size === gameState.solutions.length) {
             const count = gameState.count || 7;
             try {
-                const wordData = await getWordSet();
-                await newGame(wordData, count);
+                const sjp = await getWordSet();
+                await newGame(sjp, count);
             } catch (e) {
                 console.error('Cannot generate next game', e);
             }
@@ -1017,8 +1023,8 @@ function setupGameControls() {
             }
             const count = gameState.count || 7;
             try {
-                const wordData = await getWordSet();
-                await newGame(wordData, count);
+                const sjp = await getWordSet();
+                await newGame(sjp, count);
             } catch (e) {
                 console.error('Cannot generate next game', e);
             }
@@ -1106,30 +1112,32 @@ if (document.readyState === 'loading') {
 
 // --- statistics functions for fun and profit -------------------------------
 async function getWordWithMostAnagrams() {
-    const wordData = await getWordSet();
+    const sjp = await getWordSet();
     let maxCount = 0;
     let maxKey = null;
-    for (const key of Object.keys(wordData.map)) {
-        const count = wordData.map[key].length;
+    for (const [key, indices] of sjp.anagramMap.entries()) {
+        const count = indices.length;
         if (count > maxCount) {
             maxCount = count;
             maxKey = key;
         }
     }
-    return { key: maxKey, count: maxCount, words: wordData.map[maxKey] };
+    const maxIndices = maxKey ? sjp.anagramMap.get(maxKey) || [] : [];
+    const words = maxIndices.map(idx => sjp.wordsArray[idx]);
+    return { key: maxKey, count: maxCount, words };
 }
 
 async function getEveryWordWithEveryPointsLetter(letterCount) {
     // gets a list of words that contain at least one letter for each point
     // value (1,2,3,5) and returns the list sorted by total score, highest
     // first
-    const wordData = await getWordSet();
+    const sjp = await getWordSet();
     const literakiData = new LiterakiData();
     const matchingWords = [];
     
-    for (const key of Object.keys(wordData.map)) {
-        const words = wordData.map[key];
-        for (const w of words) {
+    for (const indices of sjp.anagramMap.values()) {
+        for (const idx of indices) {
+            const w = sjp.wordsArray[idx];
             if (w.length !== letterCount) continue;
             let wordScore = 0;
             let onePointerPresent = false;
@@ -1166,14 +1174,39 @@ async function getEveryWordWithEveryPointsLetter(letterCount) {
     return matchingWords;
 }
 
+async function exportTop365SevenLetterWords() {
+    const topWords = (await getEveryWordWithEveryPointsLetter(7)).slice(0, 365);
+    const header = 'rank,word,score';
+    const lines = topWords.map((entry, idx) => `${idx + 1},${entry.word},${entry.score}`);
+    const content = [header, ...lines].join('\n');
+
+    if (typeof saveToFile === 'function') {
+        saveToFile('top365_7liter_najwyzej_punktowane.csv', content);
+        return;
+    }
+
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'top365_7liter_najwyzej_punktowane.csv';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 100);
+}
+
 async function getEveryWordPoints(letterCount) {
-    const wordData = await getWordSet();
+    const sjp = await getWordSet();
     const literakiData = new LiterakiData();
     const matchingWords = [];
     
-    for (const key of Object.keys(wordData.map)) {
-        const words = wordData.map[key];
-        for (const w of words) {
+    for (const indices of sjp.anagramMap.values()) {
+        for (const idx of indices) {
+            const w = sjp.wordsArray[idx];
             if (w.length !== letterCount) continue;
             let wordScore = 0;
             
@@ -1181,7 +1214,7 @@ async function getEveryWordPoints(letterCount) {
                 const points = literakiData.getLetterPoint(ch);
                 wordScore += points;
             }
-            usedCharsCountMap = {};
+            let usedCharsCountMap = {};
             for (const ch of w) {
               usedCharsCountMap[ch] = (usedCharsCountMap[ch] || 0) + 1;
             }
@@ -1207,13 +1240,13 @@ async function getEveryWordPoints(letterCount) {
 }
 
 async function getMostValuableWordOfLength(length) {
-    const wordData = await getWordSet();
+    const sjp = await getWordSet();
     const literakiData = new LiterakiData();
     let maxScore = 0;
     let bestWord = null;
-    for (const key of Object.keys(wordData.map)) {
-        const words = wordData.map[key];
-        for (const w of words) {
+    for (const indices of sjp.anagramMap.values()) {
+        for (const idx of indices) {
+            const w = sjp.wordsArray[idx];
             if (w.length !== length) continue;
             let wordScore = 0;
             for (const ch of w) {
@@ -1229,12 +1262,12 @@ async function getMostValuableWordOfLength(length) {
 }
 
 async function getWordsListWithXVowels(vowelCount, wordLength) {
-    const wordData = await getWordSet();
+    const sjp = await getWordSet();
     const literakiData = new LiterakiData();
     const matchingWords = [];
-    for (const key of Object.keys(wordData.map)) {
-        const words = wordData.map[key];
-        for (const w of words) {
+    for (const indices of sjp.anagramMap.values()) {
+        for (const idx of indices) {
+            const w = sjp.wordsArray[idx];
             if (w.length !== wordLength) continue;
             let count = 0;
             for (const ch of w) {
@@ -1260,11 +1293,12 @@ async function getWordsListWithXVowels(vowelCount, wordLength) {
 //  - optymalizacja wyświetlania, reużywanie elementów DOM zamiast ciągłego tworzenia nowych
 //
 // - karta ze statystykami (dla wszystkich słów, dla słów o konkretnych długościach):
-//  - najczęstsze litery
-//  - najczęstsze początki/końcówki
-//  - rozkład ilościowy stosunku spółgłosek do samogłosek w wyrazach konkretnych długości
+//  - najczęstsze litery (liczba wystąpień, rozkład w zależności od pozycji w słowie)
+//  - najczęstsze początki/końcówki (liczba wystąpień, rozkład w zależności od długości słowa)
+//  - rozkład ilościowy stosunku spółgłosek do samogłosek w wyrazach konkretnych długości (średnia, mediana)
 //  - największa liczba anagramów dla pojedynczego słowa, jakie to słowa
-//  - najczęściej występujące litery na raz
+//  - najczęściej występujące (dwie, trzy, cztery) litery na raz (np. dla 7-literowych słów, ile jest słów zawierających jednocześnie A,E,S,T)
+//  - najwyżej punktowane słowa dla każdej długości, przy uwzględnieniu ilości liter 
 //
 // - customowa gra:
 //  - ustaw czas rozgrywki w minutach
