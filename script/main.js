@@ -1256,21 +1256,9 @@ async function getWordsListWithXVowels(vowelCount, wordLength) {
 //  - lepsze organizowanie kodu w moduły (np. oddzielny moduł do obsługi słów i anagramów, oddzielny do logiki gry, oddzielny do UI)
 //
 // - optymalizacja:
-//  - szybsze wczytywanie i przetwarzanie pliku z listą słów
 //  - optymalizacja wyświetlania, reużywanie elementów DOM zamiast ciągłego tworzenia nowych
-//
-// - karta ze statystykami (dla wszystkich słów, dla słów o konkretnych długościach):
-//  - najczęstsze litery (liczba wystąpień, rozkład w zależności od pozycji w słowie)
-//  - najczęstsze początki/końcówki (liczba wystąpień, rozkład w zależności od długości słowa)
-//  - rozkład ilościowy stosunku spółgłosek do samogłosek w wyrazach konkretnych długości (średnia, mediana)
-//  - największa liczba anagramów dla pojedynczego słowa, jakie to słowa
-//  - najczęściej występujące (dwie, trzy, cztery) litery na raz (np. dla 7-literowych słów, ile jest słów zawierających jednocześnie A,E,S,T)
-//  - najwyżej punktowane słowa dla każdej długości, przy uwzględnieniu ilości liter 
 //
 // - customowa gra:
 //  - ustaw czas rozgrywki w minutach
 //  - liczba liter
 //  - przycisk "udostępnij link"
-//
-// - bajery:
-//  - cofanie słów
