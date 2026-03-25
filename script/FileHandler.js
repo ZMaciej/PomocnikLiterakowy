@@ -401,6 +401,24 @@ async function loadLengthKeysFromJson(fileName, anagramMapPromise = null) {
     }
 }
 
+async function loadDerivedJsonFromCacheOrGenerate(fileName, generateData = null) {
+    try {
+        const rawJson = await loadRawFileWithIndexedDbCacheOrGenerate(fileName, 'text', async () => {
+            if (typeof generateData !== 'function') {
+                throw new Error(`Missing generator for derived JSON file: ${fileName}`);
+            }
+
+            const generated = await generateData();
+            return JSON.stringify(generated);
+        });
+
+        return JSON.parse(rawJson);
+    } catch (e) {
+        console.error(`Error loading derived JSON file ${fileName}`, e);
+        return null;
+    }
+}
+
 async function commonPartWithSjp() {
     const topWords = await loadCsvFile('pl_top_words.csv');
     const words = await loadWordsFile();

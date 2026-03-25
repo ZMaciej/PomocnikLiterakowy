@@ -5,6 +5,7 @@ class SlownikJezykaPolskiego {
     this.anagramArray = null;
     this.anagramMap = null;
     this.lengthKeys = null;
+    this.aggregatedStats = null;
     this.onProgress = null;
     this.polishChars = ['a', 'ą', 'b', 'c', 'ć', 'd', 'e', 'ę',
       'f', 'g', 'h', 'i', 'j', 'k', 'l', 'ł', 'm', 'n', 'ń', 'o', 'ó',
@@ -38,10 +39,11 @@ class SlownikJezykaPolskiego {
     try {
       let comments = ['Pobieranie listy słów...',
         'Wczytywanie mapy anagramów...',
+        'Liczenie statystyk słownika...',
         'Finalizowanie słownika...',
         'Słownik gotowy!',
         'Słownik gotowy!'];
-      let progressValues = [10, 40, 70, 90, 100];
+      let progressValues = [10, 35, 55, 75, 90, 100];
       let currentCommentIndex = 0;
 
       this.onProgress = typeof onProgress === 'function' ? onProgress : null;
@@ -65,15 +67,44 @@ class SlownikJezykaPolskiego {
         return lengthKeys;
       });
 
-      const [wordsArray, anagramMap, lengthKeys] = await Promise.all([
+      const aggregatedStatsPromise = loadDerivedJsonFromCacheOrGenerate(`${path}/aggregated_stats.v2.json`, async () => {
+        const [wordsArray, anagramMap, lengthKeys] = await Promise.all([
+          wordsPromise,
+          anagramMapPromise,
+          lengthKeysPromise
+        ]);
+
+        const statsDictionary = {
+          loaded: true,
+          wordsArray,
+          anagramMap,
+          lengthKeys,
+          polishChars: this.polishChars
+        };
+        const Builder = window.SjpAggregatedStatsBuilder;
+        if (typeof Builder !== 'function') {
+          throw new Error('SjpAggregatedStatsBuilder is unavailable');
+        }
+
+        const builder = new Builder(statsDictionary);
+        return builder.build();
+      }).then(aggregatedStats => {
+        currentCommentIndex++;
+        this.progressCallback(progressValues[currentCommentIndex], comments[currentCommentIndex]);
+        return aggregatedStats;
+      });
+
+      const [wordsArray, anagramMap, lengthKeys, aggregatedStats] = await Promise.all([
         wordsPromise,
         anagramMapPromise,
-        lengthKeysPromise
+        lengthKeysPromise,
+        aggregatedStatsPromise
       ]);
       this.wordsArray = wordsArray;
       this.anagramMap = anagramMap;
       this.anagramArray = Array.from(anagramMap.keys());
       this.lengthKeys = lengthKeys;
+      this.aggregatedStats = aggregatedStats;
       this.loaded = true;
       currentCommentIndex++;
       this.progressCallback(progressValues[currentCommentIndex], comments[currentCommentIndex]);
@@ -147,5 +178,28 @@ class SlownikJezykaPolskiego {
       anagrams.push(this.wordsArray[idx]);
     }
     return anagrams;
+  }
+
+  getAggregatedStats() {
+    if (!this.loaded) {
+      throw new Error('SlownikJezykaPolskiego not loaded yet');
+    }
+
+    return this.aggregatedStats;
+  }
+
+  getAggregatedStatsForLength(wordLength) {
+    const stats = this.getAggregatedStats();
+    return stats?.byLength?.[wordLength] || null;
+  }
+
+  getCombinedAggregatedStats(lengths) {
+    const stats = this.getAggregatedStats();
+    const Builder = window.SjpAggregatedStatsBuilder;
+    if (!stats || typeof Builder !== 'function') {
+      return null;
+    }
+
+    return Builder.createCombinedView(stats, lengths);
   }
 }

@@ -1253,12 +1253,56 @@ async function getWordsListWithXVowels(vowelCount, wordLength) {
 // TODO:
 // - czyszczenie kodu:
 //  - usunięcie nieużywanych funkcji i zmiennych
-//  - lepsze organizowanie kodu w moduły (np. oddzielny moduł do obsługi słów i anagramów, oddzielny do logiki gry, oddzielny do UI)
+//  - lepsze organizowanie kodu w moduły (np. oddzielny moduł do obsługi słów i
+//    anagramów, oddzielny do logiki gry, oddzielny do UI)
 //
 // - optymalizacja:
-//  - optymalizacja wyświetlania, reużywanie elementów DOM zamiast ciągłego tworzenia nowych
+//  - optymalizacja wyświetlania, reużywanie elementów DOM zamiast ciągłego
+//    tworzenia nowych
 //
 // - customowa gra:
 //  - ustaw czas rozgrywki w minutach
 //  - liczba liter
 //  - przycisk "udostępnij link"
+//
+// - statystyki:
+//  - Liczba słów: chyba lepiej pokazać procent, typu 80% słów zaczyna się na
+//    “a”, zamiast, że jest ich 9382374.
+//  - Początki & końcówki: super byłoby widzieć dodatkowo też początki oraz
+//    końcówki 3 i 4 literowe
+//  - Najczęstsze litery top 10: chyba fajniej dać kolumnę z najczęstszą pozycją
+//    jako pierwsza a liczbę/procent na końcu, bo to drugorzędna informacja
+//  - Pole do wprowadzenie dowolnej literki i pokazanie statystyk tej litery
+
+// statystyki zbiorcze dla podanego zbioru długości liter w słowie np. od 7 do
+// 10 i 12:
+// - liczba słów o danych długościach + jaki to procent wszystkich słów
+// - najpopularniejsze litery (top 10) + ich procent występowania
+// - najpopularniejsze początki i końcówki 2 - 4 literowe (top 10) + ich procent
+//   występowania
+// - najczęstsze ciągi literowe 2 - 4 literowe (top 10) + ich procent
+//   występowania
+// - najczęściej występujące litery razem
+// - najwyżej punktowane słowa (top 10) + ich punktacja per literę
+// - słowa z największą liczbą anagramów (top 10) + liczba anagramów ? <-- do
+//   przemyślenia
+// - możliwość wprowadzenia ciągu liter od 1 do 4 i pokazanie statystyk dla tego
+//   ciągu (procent występowania, najpopularniejsze pozycje w słowie) checkbox
+//   do sprawdzania dokładnych dopasowań czyli po wpisaniu ciągu "abc"
+//   pokazywałoby statystyki dla "abc" a po odznaczeniu pokazywałoby statystyki
+//   dla tych liter niezależnie od kolejności i bliskości, czyli np. "abc"
+//   dawałoby statystyki dla wszystkich słów zawierających litery a, b i c
+//   gdziekolwiek w słowie. Pokazanie przykładowych słów zawierających ten ciąg (np. dla "abc" pokazałoby słowa "abcde")
+
+// co dodatkowo można pokazać dla statystyki pojedyńczego zbioru słów (np. tylko
+// 7 literowych):
+// - przy konkretnych ciągach liter (1-4) można pokazać z jaką częstotliwością
+//   występują te litery na konkretnych pozycjach w słowie, np. dla ciągu "nie"
+//   można pokazać, że w x% przypadków ciąg startuje z pierwszej pozycji w
+//   słowie, a w y% przypadków jest na końcu słowa, a w z% jest gdzieś w środku.
+//   Można to pokazać w formie wykresu słupkowego z pozycjami 1-7 (dla 7
+//   literowych) na osi X i procentem występowania na osi Y. Tutaj oczywiście
+//   jeśli wybrany ciąg jest 1 literowy to dla słowa 7 literowego mamy 7
+//   możliwych pozycji, jeśli ciąg 2 literowy to 6 możliwych pozycji itd.
+// - jaki procent wszystkich słów to słowa x literowe, np. 7 literowe to x% wszystkich słów
+
