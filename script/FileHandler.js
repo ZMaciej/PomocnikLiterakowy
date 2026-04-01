@@ -134,8 +134,8 @@ async function writeCachedFileRecord(filePath, content, updateDateMeta, response
             path: filePath,
             content: cacheContent,
             responseType,
-            updateDateText: updateDateMeta.text,
-            updateTimestamp: updateDateMeta.timestamp,
+            updateDateText: updateDateMeta?.text ?? null,
+            updateTimestamp: Number.isFinite(updateDateMeta?.timestamp) ? updateDateMeta.timestamp : null,
             savedAt: Date.now()
         });
 
@@ -196,43 +196,96 @@ async function fetchRawFile(filePath, responseType) {
     return resp.text();
 }
 
-async function loadRawFileWithIndexedDbCacheOrGenerate(filePath, responseType, generateContent = null) {
+async function loadRawFileWithIndexedDbCacheOrGenerate(filePath, responseType, generateContent = null, options = {}) {
     const canGenerate = typeof generateContent === 'function';
+    const preferNetworkWhenGenerate = !!options.preferNetworkWhenGenerate;
+    const cacheWithoutUpdateDate = canGenerate && !!options.cacheWithoutUpdateDate;
     const updateDateMeta = await loadUpdateDateMeta(filePath);
 
     if (updateDateMeta) {
         const cachedRecord = await readCachedFileRecord(filePath);
         if (isCachedRecordFresh(cachedRecord, responseType, updateDateMeta)) {
-            logFileCacheEvent(filePath, 'loaded from IndexedDB', {
+            logFileCacheEvent(filePath, canGenerate ? 'loaded prebuilt artifact from IndexedDB' : 'loaded from IndexedDB', {
                 cachedUpdateDate: cachedRecord.updateDateText,
                 requestedUpdateDate: updateDateMeta.text
             });
             return cloneCachedContent(cachedRecord.content, responseType);
         }
 
-        if (canGenerate) {
+        if (canGenerate && !preferNetworkWhenGenerate) {
             const generatedContent = await generateContent();
             await writeCachedFileRecord(filePath, generatedContent, updateDateMeta, responseType);
-            logFileCacheEvent(filePath, 'generated locally and saved to IndexedDB', {
+            logFileCacheEvent(filePath, 'generated locally and saved to IndexedDB (network fetch skipped)', {
                 previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
                 requestedUpdateDate: updateDateMeta.text
             });
             return cloneCachedContent(generatedContent, responseType);
         }
 
-        const freshContent = await fetchRawFile(filePath, responseType);
-        await writeCachedFileRecord(filePath, freshContent, updateDateMeta, responseType);
-        logFileCacheEvent(filePath, 'loaded from network and saved to IndexedDB', {
-            previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
-            requestedUpdateDate: updateDateMeta.text
-        });
-        return freshContent;
+        try {
+            const freshContent = await fetchRawFile(filePath, responseType);
+            await writeCachedFileRecord(filePath, freshContent, updateDateMeta, responseType);
+            logFileCacheEvent(filePath, canGenerate ? 'loaded prebuilt artifact from network and saved to IndexedDB' : 'loaded from network and saved to IndexedDB', {
+                previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
+                requestedUpdateDate: updateDateMeta.text
+            });
+            return freshContent;
+        } catch (networkError) {
+            if (!canGenerate) {
+                throw networkError;
+            }
+
+            const generatedContent = await generateContent();
+            await writeCachedFileRecord(filePath, generatedContent, updateDateMeta, responseType);
+            logFileCacheEvent(filePath, 'network unavailable; generated locally and saved to IndexedDB', {
+                previousCachedUpdateDate: cachedRecord?.updateDateText ?? null,
+                requestedUpdateDate: updateDateMeta.text,
+                networkError: String(networkError)
+            });
+            return cloneCachedContent(generatedContent, responseType);
+        }
     }
 
     if (canGenerate) {
-        const generatedContent = await generateContent();
-        logFileCacheEvent(filePath, 'generated locally; updateDate.txt unavailable, not cached');
-        return cloneCachedContent(generatedContent, responseType);
+        if (cacheWithoutUpdateDate) {
+            const cachedRecord = await readCachedFileRecord(filePath);
+            if (cachedRecord && cachedRecord.responseType === responseType) {
+                logFileCacheEvent(filePath, 'loaded generated artifact from IndexedDB; updateDate.txt unavailable/invalid', {
+                    cachedSavedAt: cachedRecord.savedAt || null
+                });
+                return cloneCachedContent(cachedRecord.content, responseType);
+            }
+        }
+
+        if (!preferNetworkWhenGenerate) {
+            const generatedContent = await generateContent();
+            if (cacheWithoutUpdateDate) {
+                await writeCachedFileRecord(filePath, generatedContent, null, responseType);
+                logFileCacheEvent(filePath, 'generated locally and saved to IndexedDB; updateDate.txt unavailable/invalid');
+            } else {
+                logFileCacheEvent(filePath, 'generated locally; updateDate.txt unavailable or invalid, cache skipped');
+            }
+            return cloneCachedContent(generatedContent, responseType);
+        }
+
+        try {
+            const freshContent = await fetchRawFile(filePath, responseType);
+            logFileCacheEvent(filePath, 'loaded prebuilt artifact from network; updateDate.txt missing or invalid, cache skipped');
+            return freshContent;
+        } catch (networkError) {
+            const generatedContent = await generateContent();
+            if (cacheWithoutUpdateDate) {
+                await writeCachedFileRecord(filePath, generatedContent, null, responseType);
+                logFileCacheEvent(filePath, 'network unavailable; generated locally and saved to IndexedDB because updateDate.txt is missing/invalid', {
+                    networkError: String(networkError)
+                });
+            } else {
+                logFileCacheEvent(filePath, 'network unavailable; generated locally because updateDate.txt is missing/invalid', {
+                    networkError: String(networkError)
+                });
+            }
+            return cloneCachedContent(generatedContent, responseType);
+        }
     }
 
     logFileCacheEvent(filePath, 'loaded from network; updateDate.txt missing or invalid, cache skipped');
@@ -401,7 +454,7 @@ async function loadLengthKeysFromJson(fileName, anagramMapPromise = null) {
     }
 }
 
-async function loadDerivedJsonFromCacheOrGenerate(fileName, generateData = null) {
+async function loadDerivedJsonFromCacheOrGenerate(fileName, generateData = null, options = {}) {
     try {
         const rawJson = await loadRawFileWithIndexedDbCacheOrGenerate(fileName, 'text', async () => {
             if (typeof generateData !== 'function') {
@@ -410,7 +463,7 @@ async function loadDerivedJsonFromCacheOrGenerate(fileName, generateData = null)
 
             const generated = await generateData();
             return JSON.stringify(generated);
-        });
+        }, options);
 
         return JSON.parse(rawJson);
     } catch (e) {
@@ -433,6 +486,11 @@ async function commonPartWithSjp() {
 
 function saveToFile(filename, content) {
     const blob = new Blob([content], { type: 'text/plain' });
+    saveBlobToFile(filename, blob);
+    console.log(`File download started: ${filename}`);
+}
+
+function saveBlobToFile(filename, blob) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -444,8 +502,346 @@ function saveToFile(filename, content) {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     }, 100);
-    console.log(`File download started: ${filename}`);
 }
+
+function saveBinaryToFile(filename, arrayBuffer, mimeType = 'application/octet-stream') {
+    const blob = new Blob([arrayBuffer], { type: mimeType });
+    saveBlobToFile(filename, blob);
+    console.log(`Binary file download started: ${filename}`);
+}
+
+class StatsArchiveZipBuilder {
+    static crc32Table = null;
+
+    static getCrc32Table() {
+        if (StatsArchiveZipBuilder.crc32Table) {
+            return StatsArchiveZipBuilder.crc32Table;
+        }
+
+        const table = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+            let c = i;
+            for (let k = 0; k < 8; k++) {
+                c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            }
+            table[i] = c >>> 0;
+        }
+
+        StatsArchiveZipBuilder.crc32Table = table;
+        return table;
+    }
+
+    static crc32(bytes) {
+        const table = StatsArchiveZipBuilder.getCrc32Table();
+        let crc = 0xFFFFFFFF;
+        for (let i = 0; i < bytes.length; i++) {
+            const index = (crc ^ bytes[i]) & 0xFF;
+            crc = (crc >>> 8) ^ table[index];
+        }
+
+        return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    static toUint8Array(content) {
+        if (content instanceof Uint8Array) {
+            return content;
+        }
+
+        if (content instanceof ArrayBuffer) {
+            return new Uint8Array(content);
+        }
+
+        if (typeof content === 'string') {
+            return new TextEncoder().encode(content);
+        }
+
+        throw new Error('Unsupported zip content type');
+    }
+
+    static getDosDateTime(date = new Date()) {
+        const year = Math.max(1980, date.getFullYear());
+        const dosTime = ((date.getHours() & 0x1F) << 11)
+            | ((date.getMinutes() & 0x3F) << 5)
+            | Math.floor((date.getSeconds() & 0x3E) / 2);
+        const dosDate = (((year - 1980) & 0x7F) << 9)
+            | (((date.getMonth() + 1) & 0x0F) << 5)
+            | (date.getDate() & 0x1F);
+
+        return { dosDate, dosTime };
+    }
+
+    static createZipArchive(files, options = {}) {
+        const now = options.date instanceof Date ? options.date : new Date();
+        const nameEncoder = new TextEncoder();
+        const { dosDate, dosTime } = StatsArchiveZipBuilder.getDosDateTime(now);
+
+        const normalizedFiles = (files || []).map(file => {
+            const name = String(file.name || '').replace(/\\/g, '/');
+            const nameBytes = nameEncoder.encode(name);
+            const data = StatsArchiveZipBuilder.toUint8Array(file.content);
+            const crc = StatsArchiveZipBuilder.crc32(data);
+
+            return {
+                name,
+                nameBytes,
+                data,
+                crc
+            };
+        });
+
+        const localHeaders = [];
+        const centralHeaders = [];
+        let localOffset = 0;
+
+        for (const file of normalizedFiles) {
+            const localHeader = new Uint8Array(30 + file.nameBytes.length);
+            const localView = new DataView(localHeader.buffer);
+            localView.setUint32(0, 0x04034B50, true);
+            localView.setUint16(4, 20, true);
+            localView.setUint16(6, 0, true);
+            localView.setUint16(8, 0, true);
+            localView.setUint16(10, dosTime, true);
+            localView.setUint16(12, dosDate, true);
+            localView.setUint32(14, file.crc, true);
+            localView.setUint32(18, file.data.length, true);
+            localView.setUint32(22, file.data.length, true);
+            localView.setUint16(26, file.nameBytes.length, true);
+            localView.setUint16(28, 0, true);
+            localHeader.set(file.nameBytes, 30);
+
+            localHeaders.push(localHeader, file.data);
+
+            const centralHeader = new Uint8Array(46 + file.nameBytes.length);
+            const centralView = new DataView(centralHeader.buffer);
+            centralView.setUint32(0, 0x02014B50, true);
+            centralView.setUint16(4, 20, true);
+            centralView.setUint16(6, 20, true);
+            centralView.setUint16(8, 0, true);
+            centralView.setUint16(10, 0, true);
+            centralView.setUint16(12, dosTime, true);
+            centralView.setUint16(14, dosDate, true);
+            centralView.setUint32(16, file.crc, true);
+            centralView.setUint32(20, file.data.length, true);
+            centralView.setUint32(24, file.data.length, true);
+            centralView.setUint16(28, file.nameBytes.length, true);
+            centralView.setUint16(30, 0, true);
+            centralView.setUint16(32, 0, true);
+            centralView.setUint16(34, 0, true);
+            centralView.setUint16(36, 0, true);
+            centralView.setUint32(38, 0, true);
+            centralView.setUint32(42, localOffset, true);
+            centralHeader.set(file.nameBytes, 46);
+            centralHeaders.push(centralHeader);
+
+            localOffset += localHeader.length + file.data.length;
+        }
+
+        const centralSize = centralHeaders.reduce((sum, item) => sum + item.length, 0);
+        const endRecord = new Uint8Array(22);
+        const endView = new DataView(endRecord.buffer);
+        endView.setUint32(0, 0x06054B50, true);
+        endView.setUint16(4, 0, true);
+        endView.setUint16(6, 0, true);
+        endView.setUint16(8, normalizedFiles.length, true);
+        endView.setUint16(10, normalizedFiles.length, true);
+        endView.setUint32(12, centralSize, true);
+        endView.setUint32(16, localOffset, true);
+        endView.setUint16(20, 0, true);
+
+        const totalSize = localOffset + centralSize + endRecord.length;
+        const out = new Uint8Array(totalSize);
+        let offset = 0;
+
+        for (const part of localHeaders) {
+            out.set(part, offset);
+            offset += part.length;
+        }
+
+        for (const part of centralHeaders) {
+            out.set(part, offset);
+            offset += part.length;
+        }
+
+        out.set(endRecord, offset);
+        return out.buffer;
+    }
+}
+
+function validateDerivedStatsExportInputs(metadata, matchCollections, queryIndexMaps) {
+    const collectionParts = Array.isArray(metadata?.substringCollections?.parts)
+        ? metadata.substringCollections.parts
+        : [];
+    const queryIndexParts = Array.isArray(metadata?.substringQueryIndexes?.parts)
+        ? metadata.substringQueryIndexes.parts
+        : [];
+
+    if (!collectionParts.length) {
+        throw new Error('Cannot export stats: metadata.substringCollections.parts is empty or missing');
+    }
+    if (!queryIndexParts.length) {
+        throw new Error('Cannot export stats: metadata.substringQueryIndexes.parts is empty or missing');
+    }
+    if (!matchCollections || typeof matchCollections.entries !== 'function') {
+        throw new Error('Cannot export stats: dictionary.substringMatchCollections is unavailable');
+    }
+    if (!queryIndexMaps || typeof queryIndexMaps.get !== 'function') {
+        throw new Error('Cannot export stats: dictionary.substringQueryIndexMaps is unavailable');
+    }
+
+    const presentCollectionIds = new Set();
+    for (const [id] of matchCollections.entries()) {
+        presentCollectionIds.add(Number(id));
+    }
+
+    const missingCollectionParts = [];
+    for (const part of collectionParts) {
+        let foundAny = false;
+        for (let id = Number(part.minCollectionId); id <= Number(part.maxCollectionId); id++) {
+            if (presentCollectionIds.has(id)) {
+                foundAny = true;
+                break;
+            }
+        }
+
+        if (!foundAny) {
+            missingCollectionParts.push(part.fileName || `${part.minCollectionId}-${part.maxCollectionId}`);
+        }
+    }
+
+    const missingQueryIndexParts = [];
+    for (const part of queryIndexParts) {
+        const mapKey = `${part.mode}|${part.length}|${part.querySize}`;
+        const entriesMap = queryIndexMaps.get(mapKey);
+        if (!entriesMap || typeof entriesMap.values !== 'function') {
+            missingQueryIndexParts.push(part.fileName || mapKey);
+        }
+    }
+
+    if (missingCollectionParts.length || missingQueryIndexParts.length) {
+        throw new Error(
+            `Cannot export stats: missing in-memory parts. `
+            + `collections=[${missingCollectionParts.join(', ') || 'none'}], `
+            + `queryIndexes=[${missingQueryIndexParts.join(', ') || 'none'}]`
+        );
+    }
+
+    return {
+        collectionParts,
+        queryIndexParts
+    };
+}
+
+function exportDerivedStatsFilesFromDictionary(dictionary, options = {}) {
+    if (!dictionary || !dictionary.loaded) {
+        throw new Error('Dictionary must be loaded before exporting derived stats files');
+    }
+
+    const Builder = window.SjpAggregatedStatsBuilder;
+    if (typeof Builder !== 'function') {
+        throw new Error('SjpAggregatedStatsBuilder is unavailable');
+    }
+
+    const metadata = typeof dictionary.getAggregatedStats === 'function'
+        ? dictionary.getAggregatedStats()
+        : dictionary.aggregatedStats;
+    if (!metadata) {
+        throw new Error('Missing aggregated stats metadata to export');
+    }
+
+    const metadataFileName = options.metadataFileName || 'aggregated_stats.v5.json';
+    const zipFileName = options.zipFileName || 'aggregated_stats.v5.bundle.zip';
+    const bundleFolderName = options.bundleFolderName || zipFileName.replace(/\.zip$/i, '');
+    const downloadZip = options.downloadZip !== false;
+    const downloadIndividualFiles = !!options.downloadIndividualFiles;
+    const matchCollections = dictionary.substringMatchCollections;
+    const queryIndexMaps = dictionary.substringQueryIndexMaps;
+
+    const validated = validateDerivedStatsExportInputs(metadata, matchCollections, queryIndexMaps);
+    const collectionParts = validated.collectionParts;
+    const queryIndexParts = validated.queryIndexParts;
+    const archiveFiles = [{
+        name: `${bundleFolderName}/${metadataFileName}`,
+        content: JSON.stringify(metadata)
+    }];
+    const exportedPartFiles = [];
+    const exportedQueryIndexFiles = [];
+
+    if (downloadIndividualFiles) {
+        saveToFile(metadataFileName, JSON.stringify(metadata));
+    }
+
+    if (collectionParts.length) {
+        for (const part of collectionParts) {
+            const collectionsToSerialize = [];
+            for (const [id, indices] of matchCollections.entries()) {
+                if (id < part.minCollectionId || id > part.maxCollectionId) {
+                    continue;
+                }
+
+                collectionsToSerialize.push({ id, indices });
+            }
+
+            const collectionsBinary = Builder.encodeMatchCollectionsBinary(collectionsToSerialize);
+            archiveFiles.push({
+                name: `${bundleFolderName}/${part.fileName}`,
+                content: collectionsBinary
+            });
+            if (downloadIndividualFiles) {
+                saveBinaryToFile(part.fileName, collectionsBinary);
+            }
+            exportedPartFiles.push({
+                fileName: part.fileName,
+                collectionCount: collectionsToSerialize.length,
+                binarySizeBytes: collectionsBinary.byteLength
+            });
+        }
+    }
+
+    if (queryIndexParts.length) {
+        for (const part of queryIndexParts) {
+            const mapKey = `${part.mode}|${part.length}|${part.querySize}`;
+            const entriesMap = queryIndexMaps.get(mapKey);
+
+            const entries = Array.from(entriesMap.values());
+            const indexBinary = Builder.encodeQueryIndexBinary(entries, part.mode === 'exact');
+            archiveFiles.push({
+                name: `${bundleFolderName}/${part.fileName}`,
+                content: indexBinary
+            });
+            if (downloadIndividualFiles) {
+                saveBinaryToFile(part.fileName, indexBinary);
+            }
+            exportedQueryIndexFiles.push({
+                fileName: part.fileName,
+                entryCount: entries.length,
+                binarySizeBytes: indexBinary.byteLength
+            });
+        }
+    }
+
+    let zipSizeBytes = 0;
+    if (downloadZip) {
+        const zipBinary = StatsArchiveZipBuilder.createZipArchive(archiveFiles);
+        zipSizeBytes = zipBinary.byteLength;
+        saveBinaryToFile(zipFileName, zipBinary, 'application/zip');
+    }
+
+    return {
+        metadataFileName,
+        bundleFolderName,
+        zipFileName: downloadZip ? zipFileName : null,
+        archivedFileCount: archiveFiles.length,
+        zipSizeBytes,
+        collectionParts: exportedPartFiles,
+        queryIndexParts: exportedQueryIndexFiles,
+        collectionCount: exportedPartFiles.reduce((sum, part) => sum + part.collectionCount, 0),
+        queryIndexCount: exportedQueryIndexFiles.reduce((sum, part) => sum + part.entryCount, 0),
+        binarySizeBytes: exportedPartFiles.reduce((sum, part) => sum + part.binarySizeBytes, 0)
+            + exportedQueryIndexFiles.reduce((sum, part) => sum + part.binarySizeBytes, 0)
+    };
+}
+
+window.exportDerivedStatsFilesFromDictionary = exportDerivedStatsFilesFromDictionary;
 
 async function loadCsvFile(fileName) {
     const resp = await fetch(fileName);

@@ -116,6 +116,18 @@ function getWordSet() {
     return cachedSetPromise;
 }
 
+// Console helper: exports precomputed derived stats files for the active dictionary.
+window.exportCurrentDerivedStatsFiles = async function exportCurrentDerivedStatsFiles(options = {}) {
+    const sjp = await getWordSet();
+    if (typeof exportDerivedStatsFilesFromDictionary !== 'function') {
+        throw new Error('exportDerivedStatsFilesFromDictionary is unavailable');
+    }
+
+    const result = exportDerivedStatsFilesFromDictionary(sjp, options);
+    console.log('[StatsExport] Exported derived files', result);
+    return result;
+};
+
 let wordOfTheDayController = null;
 let statsViewController = null;
 
@@ -1306,3 +1318,75 @@ async function getWordsListWithXVowels(vowelCount, wordLength) {
 //   możliwych pozycji, jeśli ciąg 2 literowy to 6 możliwych pozycji itd.
 // - jaki procent wszystkich słów to słowa x literowe, np. 7 literowe to x% wszystkich słów
 
+// Wytyczne do ekstrakcji statystyk dla ciągów literowych 1-4 literowych:
+
+// jak ma wyglądać ekstrakcja statystyk:
+// - przygotuj wszystkie kombinacje ciągów liter 1-4
+//   - czyli wszystkie kombinacje 4 literowe, np AAAA, AAAĄ, AAAB, ..., FGKL,
+//     ..., ŻŻŻŹ, ŻŻŻŻ
+//   - wszystkie 3 literowe
+//   - wszystkie 2 literowe
+//   - wszystkie 1 literowe (czyli po prostu alfabet)
+// - na przygotowanych kombinacjach wykonaj dla każdego słowa ze słownika podane
+//   operacje:
+
+//  if (słowo zawiera dokładny ciąg literowy) {
+//   - zwiększ licznik dokładnych dopasowań dla tego ciągu
+//   - dodaj indeks tego słowa do kolekcji słów zawierających dokładny ciąg
+//   - sprawdź pozycję tego ciągu w słowie i zwiększ licznik dla tej pozycji
+// }
+// posortowanyCiąg = ciąg literowy posortowany alfabetycznie
+// if (słowo zawiera wszystkie litery z ciągu, ale w dowolnej kolejności i indeks słowa nie jest jeszcze w kolekcji dopasowań pod kluczem shuffledOccurancesCollection[posortowanyCiąg]) {
+//   - zwiększ licznik dopasowań bez zachowania kolejności dla tego ciągu
+//   - dodaj indeks tego słowa do kolekcji słów zawierających te litery w dowolnej kolejności
+// }
+
+// - po wykonaniu tych operacji dla wszystkich słów będziesz miał gotowe
+//   statystyki dla wszystkich ciągów 1-4 literowych, które możesz potem
+//   wykorzystać do wyświetlenia statystyk dla dowolnego ciągu wpisanego przez
+//   użytkownika
+// - tak przygotowane słowniki powinny mieć też możliwość bycia przeglądanymi w
+//   formie listy, żeby można było łatwo znaleźć ciągi o konkretnych
+//   właściwościach, np. znaleźć ciągi 3 literowe, które najczęściej występują
+//   na końcu słów 7 literowych
+// - jak najmniej informacji powinno być duplikowane, więc jeśli jakiś ciąg jest
+//   zarówno początkiem jak i końcem słowa to powinien być zapisany tylko raz
+
+// przykładowe wywyłanie statystyki dla ciągu "nie":
+// stats.letterCount[7].collection["nie"] -> {
+//   exactOccurrencesCount: 12345
+//   startPositionDistribution: { 1000, 2000, 3000, 4000, 2345 },
+//   exactOccurrenceMatches: [123, 4567, 8901, ...], // indices of words with exact "nie"
+//   shuffledOccurrenceMatches: [234, 6789, 1234, ...], // indices of words with "n", "i", "e" anywhere
+//   shuffledOccurrencesCount: 54321, // includes all occurrences of "n", "i", "e" in any order, so it should be >= exactOccurrencesCount
+// }
+
+// w przypadku shuffledOccurrencesCount i shuffledOccurrenceMatches powinniśmy
+// mieć osobną kolekcję która by była linkowana do rekordu z pierwotnej
+// kolekcji, chodzi tutaj o nieduplikowanie informacji, także jeśli będzie
+// sprawdzany ciąg "nie" to w jego rekordzie będzie linkowana kolekcja z ciągiem
+// "ein", "eni", "ine", "nie" itd. i wszystkie te ciągi będą linkowały do tej
+// samej kolekcji shuffledOccurrenceMatches i shuffledOccurrencesCount, żeby nie
+// duplikować informacji o tym ile jest słów zawierających litery n, i, e w
+// dowolnym miejscu i jakie to są słowa, bo to jest informacja niezależna od
+// kolejności tych liter. Oczywiście dla ciągu 1 literowego typu "a" nie ma
+// różnicy czy to jest exact czy shuffled, więc wtedy exactOccurrencesCount
+// powinno być równe shuffledOccurrencesCount a exactOccurrenceMatches powinno
+// być równe shuffledOccurrenceMatches, ale dla ciągu 3 literowego typu "nie"
+// może być duża różnica między tymi wartościami. Kolekcję linkowaną shuffled
+// najlepiej otagować posortowanymi alfabetycznie literami które szukamy, czyli
+// dla ciągu "nie" byłoby to "ein" i pod takim kluczem byłaby zapisana kolekcja
+// wszystkich słów zawierających litery e, i, n gdziekolwiek w słowie,
+// niezależnie od kolejności, czyli np. "biedne" by się tam znalazło, ale
+// "nabce" już nie, bo nie zawiera litery "i". Dzięki temu dla każdego ciągu
+// literowego mamy szybki dostęp do statystyk dla dokładnych dopasowań i dla
+// dopasowań bez zachowania kolejności, a jednocześnie mamy zminimalizowane
+// duplikowanie informacji o tym które słowa zawierają dane litery gdziekolwiek
+// w słowie.
+
+// w trakcie generowania statystyk musimy być szczególnie uważni podczas
+// dodawania do kolekcji shuffled czyli jak sprawdzamy aktualnie jakieś słowo
+// dla ciągu "nie" to to samo słowo nie powinno wylądować w statystykach
+// shuffled podczas sprawdzania ciągu "ein", "eni", "ine" itd.. Czyli zwiększamy
+// statystyki shuffled jedynie wtedy gdy indeks słowa nie występuje jeszcze w
+// kolekcji shuffledOccurrenceMatches.

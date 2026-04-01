@@ -3,7 +3,7 @@ class StatsView {
     this.getWordSet = options.getWordSet;
     this.sectionId = options.sectionId || 'stats-section';
     this.minLength = options.minLength || 2;
-    this.maxLength = options.maxLength || 15;
+    this.maxLength = options.maxLength || 10;
 
     this.sectionEl = null;
     this.lengthsWrapEl = null;
@@ -48,7 +48,7 @@ class StatsView {
 
     this.toggleAllBtn = document.createElement('button');
     this.toggleAllBtn.id = 'stats-toggle-all';
-    this.toggleAllBtn.textContent = 'Odznacz wszystkie (2-15)';
+    this.toggleAllBtn.textContent = `Odznacz wszystkie (${this.minLength}-${this.maxLength})`;
 
     this.renderBtn = document.createElement('button');
     this.renderBtn.id = 'stats-generate';
@@ -224,12 +224,24 @@ class StatsView {
       return;
     }
 
-    this.statusEl.textContent = `Generowanie statystyk dla długości: ${selectedLengths.join(', ')}...`;
-
     await this.ensureStatsGenerator();
 
+    const availableLengths = Object.keys(this.precomputedStats?.byLength || {})
+      .map(length => Number(length))
+      .filter(length => Number.isInteger(length) && length >= this.minLength && length <= this.maxLength)
+      .sort((a, b) => a - b);
+    const availableSelectedLengths = selectedLengths.filter(length => availableLengths.includes(length));
+
+    if (!availableSelectedLengths.length) {
+      this.resultsEl.innerHTML = '';
+      this.statusEl.textContent = `Brak gotowych statystyk dla długości z wybranego zakresu ${this.minLength}-${this.maxLength}.`;
+      return;
+    }
+
+    this.statusEl.textContent = `Generowanie statystyk dla długości: ${availableSelectedLengths.join(', ')}...`;
+
     const combinedStats = typeof this.sjp.getCombinedAggregatedStats === 'function'
-      ? this.sjp.getCombinedAggregatedStats(selectedLengths)
+      ? this.sjp.getCombinedAggregatedStats(availableSelectedLengths)
       : null;
 
     if (!combinedStats) {
@@ -240,7 +252,7 @@ class StatsView {
 
     this.lastRenderedCombinedStats = combinedStats;
     this.renderResults(combinedStats);
-    this.statusEl.textContent = `Gotowe. Pokazano statystyki dla długości: ${selectedLengths.join(', ')}.`;
+    this.statusEl.textContent = `Gotowe. Pokazano statystyki dla długości: ${availableSelectedLengths.join(', ')}.`;
   }
 
   renderResults(combinedStats) {
@@ -399,11 +411,15 @@ class StatsView {
     }
 
     const exactMode = this.queryModeCheckboxEl.checked;
-    const sourceSection = exactMode
-      ? stats.substringStats.exact[query.length]
-      : stats.substringStats.lettersAnywhere[query.length];
-    const lookupValue = exactMode ? query : [...query].sort((a, b) => a.localeCompare(b, 'pl')).join('');
-    const entry = (sourceSection?.entries || []).find(item => item.value === lookupValue);
+    let detailedQuery = null;
+    let entry = null;
+    if (typeof this.sjp?.getQueryStats === 'function') {
+      detailedQuery = this.sjp.getQueryStats(query, {
+        exactMode,
+        lengths: stats.lengths
+      });
+      entry = detailedQuery?.entry || null;
+    }
 
     if (!entry) {
       const p = document.createElement('p');
@@ -417,10 +433,38 @@ class StatsView {
     list.appendChild(this.createListItem(`Tryb: ${exactMode ? 'dokładny ciąg' : 'litery gdziekolwiek w słowie'}`));
     list.appendChild(this.createListItem(`Liczba słów: ${entry.wordCount}`));
     list.appendChild(this.createListItem(`Procent słów: ${this.formatPercent(entry.percentageOfWords)}`));
+    if (!exactMode && entry.shuffledKey) {
+      list.appendChild(this.createListItem(`Klucz kanoniczny: ${entry.shuffledKey}`));
+    }
     if (exactMode) {
       list.appendChild(this.createListItem(`Liczba wszystkich wystąpień: ${entry.totalOccurrences}`));
     }
+    if (detailedQuery) {
+      list.appendChild(this.createListItem(`Liczba dopasowanych słów: ${detailedQuery.matchedIndices.length}`));
+    }
     panel.appendChild(list);
+
+    if (detailedQuery) {
+      const wordsHeader = document.createElement('h5');
+      wordsHeader.textContent = 'Dopasowane słowa';
+      panel.appendChild(wordsHeader);
+
+      const previewWords = detailedQuery.matchedIndices
+        .slice(0, 40)
+        .map(index => this.sjp.wordsArray?.[index])
+        .filter(word => typeof word === 'string' && word.length > 0);
+
+      panel.appendChild(this.createSimpleCountList(previewWords.map(word => ({ word })), {
+        keyField: 'word',
+        valueFormatter: () => ''
+      }));
+
+      if (detailedQuery.matchedIndices.length > previewWords.length) {
+        const note = document.createElement('p');
+        note.textContent = `Pokazano ${previewWords.length} z ${detailedQuery.matchedIndices.length} dopasowanych słów.`;
+        panel.appendChild(note);
+      }
+    }
 
     if (exactMode && Array.isArray(entry.startPositions)) {
       if (stats.lengths.length === 1) {
