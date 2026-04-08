@@ -53,10 +53,6 @@ function sjpStatsBuildUniqueLetterCombinations(letterFreqs, size) {
   return out;
 }
 
-function sjpStatsSortNumericAscending(a, b) {
-  return a - b;
-}
-
 class SjpAggregatedStatsBuilder {
   constructor(sjp, literakiData = new LiterakiData()) {
     if (!sjp || !sjp.loaded || !sjp.wordsArray || !sjp.anagramMap) {
@@ -89,15 +85,8 @@ class SjpAggregatedStatsBuilder {
       byLength: Object.create(null)
     };
 
-    const buildState = {
-      nextCollectionId: 1,
-      collectionParts: [],
-      currentCollectionPart: null,
-      queryIndexParts: []
-    };
-
     // Pre-scan: group word indices by word length so each length bucket can be
-    // built and immediately finalized (freeing wordMatchSet memory) before moving
+    // built and immediately finalized before moving
     // to the next length. This keeps peak memory proportional to one bucket at a
     // time instead of the sum of all buckets simultaneously.
     const wordsByLength = new Map();
@@ -123,12 +112,6 @@ class SjpAggregatedStatsBuilder {
 
     for (const [wordLength, wordIndices] of wordsByLength) {
       const bucket = this.ensureLengthBucket(stats.byLength, wordLength, queryLengths, prefixSuffixLengths);
-      const collectionPart = {
-        length: wordLength,
-        fileName: `aggregated_stats.substring_collections.len_${wordLength}.v1.bin`,
-        collections: []
-      };
-      buildState.currentCollectionPart = collectionPart;
 
       for (const wordIndex of wordIndices) {
         const rawWord = this.sjp.wordsArray[wordIndex];
@@ -188,7 +171,6 @@ class SjpAggregatedStatsBuilder {
 
             if (!seenExactInWord.has(value)) {
               exactEntry.wordCount += 1;
-              exactEntry.wordMatchSet.push(wordIndex);
               seenExactInWord.add(value);
             }
           }
@@ -196,7 +178,6 @@ class SjpAggregatedStatsBuilder {
           const combinations = sjpStatsBuildUniqueLetterCombinations(letterFreqs, size);
           for (const value of combinations) {
             const lettersAnywhereEntry = this.ensureLettersAnywhereEntry(bucket.queryIndex.lettersAnywhere[size], value);
-            lettersAnywhereEntry.wordMatchSet.push(wordIndex);
             lettersAnywhereEntry.wordCount += 1;
             lettersAnywhereEntry.totalOccurrences += 1;
             this.appendSampleWord(lettersAnywhereEntry.sampleWords, rawWord, sampleWordLimit);
@@ -218,65 +199,19 @@ class SjpAggregatedStatsBuilder {
         }
       }
 
-      // Finalize immediately after each length — deallocates wordMatchSets and
-      // queryIndex Maps before building the next bucket.
+      // Finalize immediately after each length before building the next bucket.
       this.finalizeLengthBucket(bucket, {
         topN,
         maxScoredWords,
         prefixSuffixLengths,
-        queryLengths,
-        buildState,
-        wordLength
+        queryLengths
       });
-
-      if (collectionPart.collections.length > 0) {
-        buildState.collectionParts.push(collectionPart);
-      }
-      buildState.currentCollectionPart = null;
     }
 
     this.attachAnagramStats(stats, maxAnagramGroups);
-    const substringCollectionParts = buildState.collectionParts.map(part => ({
-      length: part.length,
-      fileName: part.fileName,
-      collectionCount: part.collections.length,
-      minCollectionId: part.collections[0].id,
-      maxCollectionId: part.collections[part.collections.length - 1].id
-    }));
-    stats.substringCollections = {
-      format: 'u32-index-v1',
-      collectionCount: substringCollectionParts.reduce((sum, part) => sum + part.collectionCount, 0),
-      parts: substringCollectionParts
-    };
-
-    stats.substringQueryIndexes = {
-      format: 'query-lookup-v1',
-      partCount: buildState.queryIndexParts.length,
-      parts: buildState.queryIndexParts.map(part => ({
-        length: part.length,
-        querySize: part.querySize,
-        mode: part.mode,
-        fileName: part.fileName,
-        entryCount: part.entryCount
-      }))
-    };
 
     return {
-      metadata: stats,
-      substringCollectionsBinaryParts: buildState.collectionParts.map(part => ({
-        length: part.length,
-        fileName: part.fileName,
-        collectionCount: part.collections.length,
-        buffer: SjpAggregatedStatsBuilder.encodeMatchCollectionsBinary(part.collections)
-      })),
-      substringQueryIndexBinaryParts: buildState.queryIndexParts.map(part => ({
-        length: part.length,
-        querySize: part.querySize,
-        mode: part.mode,
-        fileName: part.fileName,
-        entryCount: part.entryCount,
-        buffer: part.buffer
-      }))
+      metadata: stats
     };
   }
 
@@ -334,11 +269,7 @@ class SjpAggregatedStatsBuilder {
         wordCount: 0,
         totalOccurrences: 0,
         startPositions: new Array(positionsCount).fill(0),
-        sampleWords: [],
-        wordMatchSet: [],
-        matchCollectionId: null,
-        shuffledKey: null,
-        shuffledCollectionId: null
+        sampleWords: []
       });
     }
 
@@ -351,32 +282,11 @@ class SjpAggregatedStatsBuilder {
         value: key,
         wordCount: 0,
         totalOccurrences: 0,
-        sampleWords: [],
-        wordMatchSet: [],
-        matchCollectionId: null
+        sampleWords: []
       });
     }
 
     return map.get(key);
-  }
-
-  allocateCollectionId(buildState, indices) {
-    if (!buildState.currentCollectionPart) {
-      throw new Error('Missing active collection part while allocating substring collection id');
-    }
-
-    const id = buildState.nextCollectionId;
-    buildState.nextCollectionId += 1;
-    buildState.currentCollectionPart.collections.push({ id, indices });
-    return id;
-  }
-
-  setCollectionFromWordSet(entry, buildState) {
-    entry.wordMatchSet.sort(sjpStatsSortNumericAscending);
-    const indices = Uint32Array.from(entry.wordMatchSet);
-    entry.matchCollectionId = this.allocateCollectionId(buildState, indices);
-    entry.wordCount = indices.length;
-    delete entry.wordMatchSet;
   }
 
   appendSampleWord(sampleWords, word, sampleWordLimit) {
@@ -423,26 +333,6 @@ class SjpAggregatedStatsBuilder {
     };
 
     for (const size of options.queryLengths) {
-      const canonicalCollections = new Map();
-
-      for (const entry of bucket.queryIndex.lettersAnywhere[size].values()) {
-        this.setCollectionFromWordSet(entry, options.buildState);
-        entry.totalOccurrences = entry.wordCount;
-        canonicalCollections.set(entry.value, entry.matchCollectionId);
-      }
-
-      for (const entry of bucket.queryIndex.exact[size].values()) {
-        entry.shuffledKey = [...entry.value].sort(sjpStatsComparePl).join('');
-        entry.shuffledCollectionId = canonicalCollections.get(entry.shuffledKey) || null;
-        if (size === 1 && entry.shuffledCollectionId != null) {
-          entry.matchCollectionId = entry.shuffledCollectionId;
-          entry.wordCount = entry.wordMatchSet.length;
-          delete entry.wordMatchSet;
-        } else {
-          this.setCollectionFromWordSet(entry, options.buildState);
-        }
-      }
-
       const exactEntries = this.normalizeQueryEntries(bucket.queryIndex.exact[size], totalWords, true);
       const lettersAnywhereEntries = this.normalizeQueryEntries(bucket.queryIndex.lettersAnywhere[size], totalWords, false);
 
@@ -452,19 +342,6 @@ class SjpAggregatedStatsBuilder {
       bucket.substringStats.lettersAnywhere[size] = {
         top: lettersAnywhereEntries.slice(0, topN)
       };
-
-      this.appendQueryIndexBinaryPart(exactEntries, {
-        buildState: options.buildState,
-        wordLength: options.wordLength,
-        querySize: Number(size),
-        mode: 'exact'
-      });
-      this.appendQueryIndexBinaryPart(lettersAnywhereEntries, {
-        buildState: options.buildState,
-        wordLength: options.wordLength,
-        querySize: Number(size),
-        mode: 'lettersAnywhere'
-      });
     }
 
     bucket.vowelConsonantRatio = {
@@ -511,25 +388,9 @@ class SjpAggregatedStatsBuilder {
         totalOccurrences: entry.totalOccurrences,
         percentageOfWords: totalWords > 0 ? entry.wordCount / totalWords : 0,
         startPositions: withPositions ? entry.startPositions : undefined,
-        sampleWords: entry.sampleWords,
-        matchCollectionId: entry.matchCollectionId,
-        shuffledKey: withPositions ? entry.shuffledKey : undefined,
-        shuffledCollectionId: withPositions ? entry.shuffledCollectionId : undefined
+        sampleWords: entry.sampleWords
       }))
       .sort((a, b) => b.wordCount - a.wordCount || sjpStatsComparePl(a.value, b.value));
-  }
-
-  appendQueryIndexBinaryPart(entries, options) {
-    const part = {
-      length: options.wordLength,
-      querySize: options.querySize,
-      mode: options.mode,
-      fileName: `aggregated_stats.substring_index.${options.mode}.len_${options.wordLength}.q_${options.querySize}.v1.bin`,
-      entryCount: entries.length,
-      buffer: SjpAggregatedStatsBuilder.encodeQueryIndexBinary(entries, options.mode === 'exact')
-    };
-
-    options.buildState.queryIndexParts.push(part);
   }
 
   attachAnagramStats(stats, maxAnagramGroups) {
@@ -738,10 +599,7 @@ class SjpAggregatedStatsBuilder {
           wordCount: 0,
           totalOccurrences: 0,
           startPositions: withPositions ? [] : undefined,
-          sampleWords: [],
-          matchCollectionIds: [],
-          shuffledKey: withPositions ? null : undefined,
-          shuffledCollectionIds: withPositions ? [] : undefined
+          sampleWords: []
         };
 
         existing.wordCount += entry.wordCount;
@@ -754,29 +612,6 @@ class SjpAggregatedStatsBuilder {
         for (const sampleWord of entry.sampleWords || []) {
           if (!existing.sampleWords.includes(sampleWord) && existing.sampleWords.length < 5) {
             existing.sampleWords.push(sampleWord);
-          }
-        }
-
-        if (Number.isInteger(entry.matchCollectionId) && !existing.matchCollectionIds.includes(entry.matchCollectionId)) {
-          existing.matchCollectionIds.push(entry.matchCollectionId);
-        }
-        for (const collectionId of entry.matchCollectionIds || []) {
-          if (Number.isInteger(collectionId) && !existing.matchCollectionIds.includes(collectionId)) {
-            existing.matchCollectionIds.push(collectionId);
-          }
-        }
-
-        if (withPositions) {
-          if (!existing.shuffledKey && entry.shuffledKey) {
-            existing.shuffledKey = entry.shuffledKey;
-          }
-          if (Number.isInteger(entry.shuffledCollectionId) && !existing.shuffledCollectionIds.includes(entry.shuffledCollectionId)) {
-            existing.shuffledCollectionIds.push(entry.shuffledCollectionId);
-          }
-          for (const collectionId of entry.shuffledCollectionIds || []) {
-            if (Number.isInteger(collectionId) && !existing.shuffledCollectionIds.includes(collectionId)) {
-              existing.shuffledCollectionIds.push(collectionId);
-            }
           }
         }
 
@@ -795,12 +630,7 @@ class SjpAggregatedStatsBuilder {
           totalOccurrences: entry.totalOccurrences,
           percentageOfWords: totalWords > 0 ? entry.wordCount / totalWords : 0,
           startPositions: withPositions ? entry.startPositions : undefined,
-          sampleWords: entry.sampleWords,
-          matchCollectionId: entry.matchCollectionIds[0] || null,
-          matchCollectionIds: entry.matchCollectionIds,
-          shuffledKey: withPositions ? entry.shuffledKey : undefined,
-          shuffledCollectionId: withPositions ? (entry.shuffledCollectionIds[0] || null) : undefined,
-          shuffledCollectionIds: withPositions ? entry.shuffledCollectionIds : undefined
+          sampleWords: entry.sampleWords
         }))
         .sort((a, b) => b.wordCount - a.wordCount || sjpStatsComparePl(a.value, b.value));
 
@@ -809,132 +639,6 @@ class SjpAggregatedStatsBuilder {
       };
     }
     return out;
-  }
-
-  static encodeQueryIndexBinary(entries, withExactFields) {
-    const encoder = new TextEncoder();
-    const normalized = (entries || []).map(entry => ({
-      value: String(entry.value || ''),
-      valueBytes: encoder.encode(String(entry.value || '')),
-      matchCollectionId: Number.isInteger(entry.matchCollectionId) ? entry.matchCollectionId : 0,
-      wordCount: Number(entry.wordCount || 0),
-      totalOccurrences: Number(entry.totalOccurrences || 0),
-      shuffledKeyBytes: withExactFields ? encoder.encode(String(entry.shuffledKey || '')) : new Uint8Array(0),
-      shuffledCollectionId: withExactFields && Number.isInteger(entry.shuffledCollectionId) ? entry.shuffledCollectionId : 0
-    })).sort((a, b) => sjpStatsComparePl(a.value, b.value));
-
-    let totalBytes = 4;
-    for (const entry of normalized) {
-      totalBytes += 2 + entry.valueBytes.length + 4 + 4;
-      if (withExactFields) {
-        totalBytes += 4 + 2 + entry.shuffledKeyBytes.length + 4;
-      }
-    }
-
-    const buffer = new ArrayBuffer(totalBytes);
-    const view = new DataView(buffer);
-    let offset = 0;
-    view.setUint32(offset, normalized.length, true);
-    offset += 4;
-
-    for (const entry of normalized) {
-      view.setUint16(offset, entry.valueBytes.length, true);
-      offset += 2;
-      new Uint8Array(buffer, offset, entry.valueBytes.length).set(entry.valueBytes);
-      offset += entry.valueBytes.length;
-
-      view.setUint32(offset, entry.matchCollectionId, true);
-      offset += 4;
-
-      view.setUint32(offset, entry.wordCount, true);
-      offset += 4;
-
-      if (withExactFields) {
-        view.setUint32(offset, entry.totalOccurrences, true);
-        offset += 4;
-
-        view.setUint16(offset, entry.shuffledKeyBytes.length, true);
-        offset += 2;
-        new Uint8Array(buffer, offset, entry.shuffledKeyBytes.length).set(entry.shuffledKeyBytes);
-        offset += entry.shuffledKeyBytes.length;
-
-        view.setUint32(offset, entry.shuffledCollectionId, true);
-        offset += 4;
-      }
-    }
-
-    return buffer;
-  }
-
-  static decodeQueryIndexBinary(buffer, withExactFields) {
-    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 4) {
-      return new Map();
-    }
-
-    const decoder = new TextDecoder();
-    const view = new DataView(buffer);
-    let offset = 0;
-    const count = view.getUint32(offset, true);
-    offset += 4;
-
-    const map = new Map();
-    for (let i = 0; i < count; i++) {
-      if (offset + 2 > buffer.byteLength) {
-        throw new Error('Corrupted query index binary (value length overflow)');
-      }
-
-      const valueLen = view.getUint16(offset, true);
-      offset += 2;
-      if (offset + valueLen + 8 > buffer.byteLength) {
-        throw new Error('Corrupted query index binary (value payload overflow)');
-      }
-
-      const value = decoder.decode(new Uint8Array(buffer, offset, valueLen));
-      offset += valueLen;
-      const matchCollectionId = view.getUint32(offset, true);
-      offset += 4;
-      const wordCount = view.getUint32(offset, true);
-      offset += 4;
-
-      if (!withExactFields) {
-        map.set(value, {
-          value,
-          wordCount,
-          matchCollectionId: matchCollectionId || null
-        });
-        continue;
-      }
-
-      if (offset + 4 + 2 > buffer.byteLength) {
-        throw new Error('Corrupted query index binary (exact header overflow)');
-      }
-
-      const totalOccurrences = view.getUint32(offset, true);
-      offset += 4;
-
-      const shuffledKeyLen = view.getUint16(offset, true);
-      offset += 2;
-      if (offset + shuffledKeyLen + 4 > buffer.byteLength) {
-        throw new Error('Corrupted query index binary (shuffled payload overflow)');
-      }
-
-      const shuffledKey = decoder.decode(new Uint8Array(buffer, offset, shuffledKeyLen));
-      offset += shuffledKeyLen;
-
-      const shuffledCollectionId = view.getUint32(offset, true);
-      offset += 4;
-
-      map.set(value, {
-        value,
-        wordCount,
-        matchCollectionId: matchCollectionId || null,
-        totalOccurrences,
-        shuffledKey,
-        shuffledCollectionId: shuffledCollectionId || null
-      });
-    }
-
-    return map;
   }
 
   static weightedMedian(valuesWithWeight) {
@@ -959,83 +663,7 @@ class SjpAggregatedStatsBuilder {
     return normalized[normalized.length - 1].value;
   }
 
-  static encodeMatchCollectionsBinary(collections) {
-    const normalized = (collections || []).map(item => {
-      const id = Number(item.id);
-      const indices = item.indices instanceof Uint32Array
-        ? item.indices
-        : new Uint32Array(item.indices || []);
-
-      return { id, indices };
-    }).sort((a, b) => a.id - b.id);
-
-    let totalBytes = 4;
-    for (const item of normalized) {
-      totalBytes += 8 + (item.indices.length * 4);
-    }
-
-    const buffer = new ArrayBuffer(totalBytes);
-    const view = new DataView(buffer);
-    let offset = 0;
-
-    view.setUint32(offset, normalized.length, true);
-    offset += 4;
-
-    for (const item of normalized) {
-      view.setUint32(offset, item.id, true);
-      offset += 4;
-
-      view.setUint32(offset, item.indices.length, true);
-      offset += 4;
-
-      const out = new Uint32Array(buffer, offset, item.indices.length);
-      out.set(item.indices);
-      offset += item.indices.length * 4;
-    }
-
-    return buffer;
-  }
-
-  static decodeMatchCollectionsBinary(buffer) {
-    if (!(buffer instanceof ArrayBuffer)) {
-      return new Map();
-    }
-
-    if (buffer.byteLength < 4) {
-      return new Map();
-    }
-
-    const view = new DataView(buffer);
-    let offset = 0;
-    const collectionCount = view.getUint32(offset, true);
-    offset += 4;
-
-    const map = new Map();
-    for (let i = 0; i < collectionCount; i++) {
-      if (offset + 8 > buffer.byteLength) {
-        throw new Error('Corrupted substring collections binary (header overflow)');
-      }
-
-      const id = view.getUint32(offset, true);
-      offset += 4;
-
-      const length = view.getUint32(offset, true);
-      offset += 4;
-
-      const byteLength = length * 4;
-      if (offset + byteLength > buffer.byteLength) {
-        throw new Error('Corrupted substring collections binary (payload overflow)');
-      }
-
-      const indices = new Uint32Array(length);
-      indices.set(new Uint32Array(buffer, offset, length));
-      map.set(id, indices);
-      offset += byteLength;
-    }
-
-    return map;
-  }
 }
 
-SjpAggregatedStatsBuilder.VERSION = 5;
+SjpAggregatedStatsBuilder.VERSION = 6;
 window.SjpAggregatedStatsBuilder = SjpAggregatedStatsBuilder;

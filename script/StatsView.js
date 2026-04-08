@@ -11,9 +11,6 @@ class StatsView {
     this.renderBtn = null;
     this.statusEl = null;
     this.resultsEl = null;
-    this.queryInputEl = null;
-    this.queryModeCheckboxEl = null;
-    this.queryButtonEl = null;
 
     this.sjp = null;
     this.statsGenerator = null;
@@ -80,52 +77,12 @@ class StatsView {
       this.lengthsWrapEl.appendChild(item);
     }
 
-    const queryWrap = document.createElement('div');
-    queryWrap.className = 'stats-controls';
-
-    const queryLabel = document.createElement('p');
-    queryLabel.className = 'stats-length-label';
-    queryLabel.textContent = 'Ciąg 1-4 znakowy';
-
-    const queryControlsTop = document.createElement('div');
-    queryControlsTop.className = 'stats-controls-top';
-
-    this.queryInputEl = document.createElement('input');
-    this.queryInputEl.type = 'text';
-    this.queryInputEl.maxLength = 4;
-    this.queryInputEl.placeholder = 'np. nie';
-    this.queryInputEl.className = 'stats-query-input';
-
-    const checkboxWrap = document.createElement('label');
-    checkboxWrap.className = 'stats-length-item';
-
-    this.queryModeCheckboxEl = document.createElement('input');
-    this.queryModeCheckboxEl.type = 'checkbox';
-    this.queryModeCheckboxEl.checked = true;
-
-    const checkboxText = document.createElement('span');
-    checkboxText.textContent = 'Dokładny ciąg';
-
-    checkboxWrap.appendChild(this.queryModeCheckboxEl);
-    checkboxWrap.appendChild(checkboxText);
-
-    this.queryButtonEl = document.createElement('button');
-    this.queryButtonEl.textContent = 'Pokaż statystyki ciągu';
-    this.queryButtonEl.className = 'stats-query-button';
-
-    queryControlsTop.appendChild(this.queryInputEl);
-    queryControlsTop.appendChild(checkboxWrap);
-    queryControlsTop.appendChild(this.queryButtonEl);
-    queryWrap.appendChild(queryLabel);
-    queryWrap.appendChild(queryControlsTop);
-
     this.statusEl = document.createElement('p');
     this.statusEl.className = 'stats-status';
 
     controls.appendChild(controlsTop);
     controls.appendChild(lengthsLabel);
     controls.appendChild(this.lengthsWrapEl);
-    controls.appendChild(queryWrap);
     controls.appendChild(this.statusEl);
 
     this.resultsEl = document.createElement('div');
@@ -152,25 +109,6 @@ class StatsView {
       this.renderForSelectedLengths().catch(err => {
         console.error('Failed to render stats', err);
         this.statusEl.textContent = 'Nie udało się wygenerować statystyk.';
-      });
-    });
-
-    this.queryButtonEl.addEventListener('click', () => {
-      this.renderForSelectedLengths().catch(err => {
-        console.error('Failed to render query stats', err);
-        this.statusEl.textContent = 'Nie udało się wygenerować statystyk ciągu.';
-      });
-    });
-
-    this.queryInputEl.addEventListener('keydown', event => {
-      if (event.key !== 'Enter') {
-        return;
-      }
-
-      event.preventDefault();
-      this.renderForSelectedLengths().catch(err => {
-        console.error('Failed to render query stats', err);
-        this.statusEl.textContent = 'Nie udało się wygenerować statystyk ciągu.';
       });
     });
 
@@ -270,7 +208,6 @@ class StatsView {
     block.appendChild(this.renderPrefixSuffixPanel(combinedStats));
     block.appendChild(this.renderSubstringPanel(combinedStats));
     block.appendChild(this.renderLettersAnywherePanel(combinedStats));
-    block.appendChild(this.renderQueryPanel(combinedStats));
     block.appendChild(this.renderTopScoredPanel(combinedStats));
     block.appendChild(this.renderMaxAnagramsPanel(combinedStats));
     block.appendChild(this.renderVowelRatioPanel(combinedStats));
@@ -397,104 +334,6 @@ class StatsView {
     });
 
     panel.appendChild(wrapper);
-    return panel;
-  }
-
-  renderQueryPanel(stats) {
-    const panel = this.createPanel('Statystyki dla wpisanego ciągu');
-    const query = this.getNormalizedQueryValue();
-    if (!query) {
-      const p = document.createElement('p');
-      p.textContent = 'Wpisz ciąg 1-4 znakowy, aby zobaczyć jego statystyki.';
-      panel.appendChild(p);
-      return panel;
-    }
-
-    const exactMode = this.queryModeCheckboxEl.checked;
-    let detailedQuery = null;
-    let entry = null;
-    if (typeof this.sjp?.getQueryStats === 'function') {
-      detailedQuery = this.sjp.getQueryStats(query, {
-        exactMode,
-        lengths: stats.lengths
-      });
-      entry = detailedQuery?.entry || null;
-    }
-
-    if (!entry) {
-      const p = document.createElement('p');
-      p.textContent = `Brak danych dla ciągu „${query}”.`;
-      panel.appendChild(p);
-      return panel;
-    }
-
-    const list = document.createElement('ul');
-    list.className = 'stats-simple-list';
-    list.appendChild(this.createListItem(`Tryb: ${exactMode ? 'dokładny ciąg' : 'litery gdziekolwiek w słowie'}`));
-    list.appendChild(this.createListItem(`Liczba słów: ${entry.wordCount}`));
-    list.appendChild(this.createListItem(`Procent słów: ${this.formatPercent(entry.percentageOfWords)}`));
-    if (!exactMode && entry.shuffledKey) {
-      list.appendChild(this.createListItem(`Klucz kanoniczny: ${entry.shuffledKey}`));
-    }
-    if (exactMode) {
-      list.appendChild(this.createListItem(`Liczba wszystkich wystąpień: ${entry.totalOccurrences}`));
-    }
-    if (detailedQuery) {
-      list.appendChild(this.createListItem(`Liczba dopasowanych słów: ${detailedQuery.matchedIndices.length}`));
-    }
-    panel.appendChild(list);
-
-    if (detailedQuery) {
-      const wordsHeader = document.createElement('h5');
-      wordsHeader.textContent = 'Dopasowane słowa';
-      panel.appendChild(wordsHeader);
-
-      const previewWords = detailedQuery.matchedIndices
-        .slice(0, 40)
-        .map(index => this.sjp.wordsArray?.[index])
-        .filter(word => typeof word === 'string' && word.length > 0);
-
-      panel.appendChild(this.createSimpleCountList(previewWords.map(word => ({ word })), {
-        keyField: 'word',
-        valueFormatter: () => ''
-      }));
-
-      if (detailedQuery.matchedIndices.length > previewWords.length) {
-        const note = document.createElement('p');
-        note.textContent = `Pokazano ${previewWords.length} z ${detailedQuery.matchedIndices.length} dopasowanych słów.`;
-        panel.appendChild(note);
-      }
-    }
-
-    if (exactMode && Array.isArray(entry.startPositions)) {
-      if (stats.lengths.length === 1) {
-        const chartLabel = document.createElement('h5');
-        chartLabel.textContent = `Pozycje startu ciągu (długość słów: ${stats.lengths[0]})`;
-        panel.appendChild(chartLabel);
-        panel.appendChild(this.createPositionChart(entry.startPositions, entry.totalOccurrences || 0));
-      } else {
-        const note = document.createElement('p');
-        note.textContent = 'Wykres pozycji jest dostępny przy wyborze jednej długości słowa.';
-        panel.appendChild(note);
-      }
-
-      const table = this.createTable(['Pozycja startu', 'Liczba', 'Udział']);
-      const totalOccurrences = entry.totalOccurrences || 0;
-      entry.startPositions.forEach((count, index) => {
-        const share = totalOccurrences > 0 ? count / totalOccurrences : 0;
-        this.appendRow(table.tbody, [String(index + 1), String(count), this.formatPercent(share)]);
-      });
-      panel.appendChild(table.table);
-    }
-
-    const examplesHeader = document.createElement('h5');
-    examplesHeader.textContent = 'Przykładowe słowa';
-    panel.appendChild(examplesHeader);
-    panel.appendChild(this.createSimpleCountList((entry.sampleWords || []).map(word => ({ word })), {
-      keyField: 'word',
-      valueFormatter: () => ''
-    }));
-
     return panel;
   }
 
@@ -661,14 +500,6 @@ class StatsView {
     return `${(value * 100).toFixed(2)}%`;
   }
 
-  getNormalizedQueryValue() {
-    const rawValue = (this.queryInputEl?.value || '').trim().toUpperCase();
-    if (!rawValue) {
-      return '';
-    }
-
-    return [...rawValue].slice(0, 4).join('');
-  }
 }
 
 window.StatsView = StatsView;

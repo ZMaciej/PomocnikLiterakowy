@@ -667,78 +667,21 @@ class StatsArchiveZipBuilder {
     }
 }
 
-function validateDerivedStatsExportInputs(metadata, matchCollections, queryIndexMaps) {
-    const collectionParts = Array.isArray(metadata?.substringCollections?.parts)
-        ? metadata.substringCollections.parts
-        : [];
-    const queryIndexParts = Array.isArray(metadata?.substringQueryIndexes?.parts)
-        ? metadata.substringQueryIndexes.parts
-        : [];
-
-    if (!collectionParts.length) {
-        throw new Error('Cannot export stats: metadata.substringCollections.parts is empty or missing');
-    }
-    if (!queryIndexParts.length) {
-        throw new Error('Cannot export stats: metadata.substringQueryIndexes.parts is empty or missing');
-    }
-    if (!matchCollections || typeof matchCollections.entries !== 'function') {
-        throw new Error('Cannot export stats: dictionary.substringMatchCollections is unavailable');
-    }
-    if (!queryIndexMaps || typeof queryIndexMaps.get !== 'function') {
-        throw new Error('Cannot export stats: dictionary.substringQueryIndexMaps is unavailable');
+function validateDerivedStatsExportInputs(metadata) {
+    if (!metadata || typeof metadata !== 'object') {
+        throw new Error('Cannot export stats: aggregated metadata is unavailable');
     }
 
-    const presentCollectionIds = new Set();
-    for (const [id] of matchCollections.entries()) {
-        presentCollectionIds.add(Number(id));
+    if (!metadata.byLength || typeof metadata.byLength !== 'object') {
+        throw new Error('Cannot export stats: metadata.byLength is missing');
     }
 
-    const missingCollectionParts = [];
-    for (const part of collectionParts) {
-        let foundAny = false;
-        for (let id = Number(part.minCollectionId); id <= Number(part.maxCollectionId); id++) {
-            if (presentCollectionIds.has(id)) {
-                foundAny = true;
-                break;
-            }
-        }
-
-        if (!foundAny) {
-            missingCollectionParts.push(part.fileName || `${part.minCollectionId}-${part.maxCollectionId}`);
-        }
-    }
-
-    const missingQueryIndexParts = [];
-    for (const part of queryIndexParts) {
-        const mapKey = `${part.mode}|${part.length}|${part.querySize}`;
-        const entriesMap = queryIndexMaps.get(mapKey);
-        if (!entriesMap || typeof entriesMap.values !== 'function') {
-            missingQueryIndexParts.push(part.fileName || mapKey);
-        }
-    }
-
-    if (missingCollectionParts.length || missingQueryIndexParts.length) {
-        throw new Error(
-            `Cannot export stats: missing in-memory parts. `
-            + `collections=[${missingCollectionParts.join(', ') || 'none'}], `
-            + `queryIndexes=[${missingQueryIndexParts.join(', ') || 'none'}]`
-        );
-    }
-
-    return {
-        collectionParts,
-        queryIndexParts
-    };
+    return metadata;
 }
 
 function exportDerivedStatsFilesFromDictionary(dictionary, options = {}) {
     if (!dictionary || !dictionary.loaded) {
         throw new Error('Dictionary must be loaded before exporting derived stats files');
-    }
-
-    const Builder = window.SjpAggregatedStatsBuilder;
-    if (typeof Builder !== 'function') {
-        throw new Error('SjpAggregatedStatsBuilder is unavailable');
     }
 
     const metadata = typeof dictionary.getAggregatedStats === 'function'
@@ -748,75 +691,20 @@ function exportDerivedStatsFilesFromDictionary(dictionary, options = {}) {
         throw new Error('Missing aggregated stats metadata to export');
     }
 
-    const metadataFileName = options.metadataFileName || 'aggregated_stats.v5.json';
-    const zipFileName = options.zipFileName || 'aggregated_stats.v5.bundle.zip';
+    const metadataFileName = options.metadataFileName || 'aggregated_stats.v6.json';
+    const zipFileName = options.zipFileName || 'aggregated_stats.v6.bundle.zip';
     const bundleFolderName = options.bundleFolderName || zipFileName.replace(/\.zip$/i, '');
     const downloadZip = options.downloadZip !== false;
     const downloadIndividualFiles = !!options.downloadIndividualFiles;
-    const matchCollections = dictionary.substringMatchCollections;
-    const queryIndexMaps = dictionary.substringQueryIndexMaps;
 
-    const validated = validateDerivedStatsExportInputs(metadata, matchCollections, queryIndexMaps);
-    const collectionParts = validated.collectionParts;
-    const queryIndexParts = validated.queryIndexParts;
+    validateDerivedStatsExportInputs(metadata);
     const archiveFiles = [{
         name: `${bundleFolderName}/${metadataFileName}`,
         content: JSON.stringify(metadata)
     }];
-    const exportedPartFiles = [];
-    const exportedQueryIndexFiles = [];
 
     if (downloadIndividualFiles) {
         saveToFile(metadataFileName, JSON.stringify(metadata));
-    }
-
-    if (collectionParts.length) {
-        for (const part of collectionParts) {
-            const collectionsToSerialize = [];
-            for (const [id, indices] of matchCollections.entries()) {
-                if (id < part.minCollectionId || id > part.maxCollectionId) {
-                    continue;
-                }
-
-                collectionsToSerialize.push({ id, indices });
-            }
-
-            const collectionsBinary = Builder.encodeMatchCollectionsBinary(collectionsToSerialize);
-            archiveFiles.push({
-                name: `${bundleFolderName}/${part.fileName}`,
-                content: collectionsBinary
-            });
-            if (downloadIndividualFiles) {
-                saveBinaryToFile(part.fileName, collectionsBinary);
-            }
-            exportedPartFiles.push({
-                fileName: part.fileName,
-                collectionCount: collectionsToSerialize.length,
-                binarySizeBytes: collectionsBinary.byteLength
-            });
-        }
-    }
-
-    if (queryIndexParts.length) {
-        for (const part of queryIndexParts) {
-            const mapKey = `${part.mode}|${part.length}|${part.querySize}`;
-            const entriesMap = queryIndexMaps.get(mapKey);
-
-            const entries = Array.from(entriesMap.values());
-            const indexBinary = Builder.encodeQueryIndexBinary(entries, part.mode === 'exact');
-            archiveFiles.push({
-                name: `${bundleFolderName}/${part.fileName}`,
-                content: indexBinary
-            });
-            if (downloadIndividualFiles) {
-                saveBinaryToFile(part.fileName, indexBinary);
-            }
-            exportedQueryIndexFiles.push({
-                fileName: part.fileName,
-                entryCount: entries.length,
-                binarySizeBytes: indexBinary.byteLength
-            });
-        }
     }
 
     let zipSizeBytes = 0;
@@ -832,12 +720,8 @@ function exportDerivedStatsFilesFromDictionary(dictionary, options = {}) {
         zipFileName: downloadZip ? zipFileName : null,
         archivedFileCount: archiveFiles.length,
         zipSizeBytes,
-        collectionParts: exportedPartFiles,
-        queryIndexParts: exportedQueryIndexFiles,
-        collectionCount: exportedPartFiles.reduce((sum, part) => sum + part.collectionCount, 0),
-        queryIndexCount: exportedQueryIndexFiles.reduce((sum, part) => sum + part.entryCount, 0),
-        binarySizeBytes: exportedPartFiles.reduce((sum, part) => sum + part.binarySizeBytes, 0)
-            + exportedQueryIndexFiles.reduce((sum, part) => sum + part.binarySizeBytes, 0)
+        metadataSizeBytes: new TextEncoder().encode(JSON.stringify(metadata)).length,
+        binarySizeBytes: 0
     };
 }
 
