@@ -317,6 +317,61 @@ class SjpStatsGenerator {
     };
   }
 
+  generateRegexCapturingGroupStartStats(wordLength, regex) {
+    if (!Number.isInteger(wordLength) || wordLength <= 0) {
+      throw new Error('wordLength must be a positive integer');
+    }
+    if (!(regex instanceof RegExp)) {
+      throw new Error('regex must be a RegExp instance');
+    }
+
+    const firstGroupStartCounts = new Array(wordLength).fill(0);
+    let scannedWordsCount = 0;
+    let matchingWordsCount = 0;
+    const matchingWordIndices = [];
+
+    const scanRegex = this.#createGlobalRegexWithIndices(regex);
+
+    for (let wordIndex = 0; wordIndex < this.sjp.wordsArray.length; wordIndex++) {
+      const word = this.sjp.wordsArray[wordIndex];
+      if (typeof word !== 'string' || word.length !== wordLength) {
+        continue;
+      }
+      scannedWordsCount += 1;
+
+      scanRegex.lastIndex = 0;
+      let matchedWord = false;
+      let match = null;
+
+      while ((match = scanRegex.exec(word)) !== null) {
+        matchedWord = true;
+
+        const groupStart = this.#resolveFirstGroupStartIndex(match);
+        if (Number.isInteger(groupStart) && groupStart >= 0 && groupStart < wordLength) {
+          firstGroupStartCounts[groupStart] += 1;
+        }
+
+        // Protect from infinite loops for zero-length matches in /g mode.
+        if (match[0] === '') {
+          scanRegex.lastIndex += 1;
+        }
+      }
+
+      if (matchedWord) {
+        matchingWordsCount += 1;
+        matchingWordIndices.push(wordIndex);
+      }
+    }
+
+    return {
+      wordLength,
+      scannedWordsCount,
+      matchingWordsCount,
+      matchingWordIndices,
+      firstCapturingGroupStartCounts: firstGroupStartCounts
+    };
+  }
+
   generateSelectedStatistics(options = {}) {
     const {
       lettersWordLength = null,
@@ -384,6 +439,33 @@ class SjpStatsGenerator {
     }
 
     return (sortedValues[middle - 1] + sortedValues[middle]) / 2;
+  }
+
+  #createGlobalRegexWithIndices(regex) {
+    const flagsSet = new Set(regex.flags.split(''));
+    flagsSet.add('g');
+    flagsSet.add('d');
+    return new RegExp(regex.source, Array.from(flagsSet).join(''));
+  }
+
+  #resolveFirstGroupStartIndex(match) {
+    if (Array.isArray(match.indices) && Array.isArray(match.indices[1])) {
+      return match.indices[1][0];
+    }
+
+    // Fallback for runtimes without support for RegExp match indices (/d).
+    if (typeof match.index !== 'number' || typeof match[1] !== 'string') {
+      return null;
+    }
+
+    const fullMatch = typeof match[0] === 'string' ? match[0] : '';
+    const groupValue = match[1];
+    const relativeStart = fullMatch.indexOf(groupValue);
+    if (relativeStart < 0) {
+      return null;
+    }
+
+    return match.index + relativeStart;
   }
 
   #buildCombinations(values, size) {

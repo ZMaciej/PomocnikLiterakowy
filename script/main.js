@@ -128,6 +128,29 @@ window.exportCurrentDerivedStatsFiles = async function exportCurrentDerivedStats
     return result;
 };
 
+// Console helper: run regex group-start stats on words of a chosen length.
+window.regexGroupStartStats = async function regexGroupStartStats(wordLength, regexOrPattern, flags = 'gm') {
+    const sjp = await getWordSet();
+    if (typeof SjpStatsGenerator !== 'function') {
+        throw new Error('SjpStatsGenerator is unavailable');
+    }
+
+    const regex = regexOrPattern instanceof RegExp
+        ? regexOrPattern
+        : new RegExp(String(regexOrPattern || ''), String(flags || ''));
+
+    const generator = new SjpStatsGenerator(sjp);
+    const result = generator.generateRegexCapturingGroupStartStats(wordLength, regex);
+    console.log('[RegexGroupStartStats]', {
+        wordLength,
+        regex: regex.toString(),
+        matchingWordsCount: result.matchingWordsCount,
+        matchingWordIndices: result.matchingWordIndices,
+        firstCapturingGroupStartCounts: result.firstCapturingGroupStartCounts
+    });
+    return result;
+};
+
 let wordOfTheDayController = null;
 let statsViewController = null;
 
