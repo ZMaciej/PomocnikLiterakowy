@@ -340,8 +340,11 @@ let gameOfDayState = {
     secondsLeft: GAME_OF_DAY_DURATION_SECONDS,
     timerId: null,
     allSolutions: [],
-    allFound: new Set()
+    allFound: new Set(),
+    dateLabel: ''
 };
+
+let gameOfDayShareInProgress = false;
 
 let normalGameScore = 0;
 let normalGameStats = {
@@ -570,6 +573,320 @@ function stopGameOfDayTimer() {
     }
 }
 
+function getTodayDateLabel(date = new Date()) {
+    return `${pad2(date.getDate())}-${pad2(date.getMonth() + 1)}-${date.getFullYear()}`;
+}
+
+function getUniqueWordsPreserveOrder(words) {
+    const seen = new Set();
+    const uniqueWords = [];
+
+    words.forEach(word => {
+        const normalized = word.trim().toLowerCase();
+        if (!normalized || seen.has(normalized)) {
+            return;
+        }
+        seen.add(normalized);
+        uniqueWords.push(word);
+    });
+
+    return uniqueWords;
+}
+
+function getGameOfDaySharePayload() {
+    const allWords = getUniqueWordsPreserveOrder(gameOfDayState.allSolutions);
+    const guessedWords = [];
+    const missedWords = [];
+
+    allWords.forEach(word => {
+        const normalized = word.trim().toLowerCase();
+        if (gameOfDayState.allFound.has(normalized)) {
+            guessedWords.push(word);
+        } else {
+            missedWords.push(word);
+        }
+    });
+
+    return {
+        dateLabel: gameOfDayState.dateLabel || getTodayDateLabel(),
+        score: gameOfDayState.score,
+        allWords,
+        guessedWords,
+        missedWords,
+        guessedCount: guessedWords.length,
+        totalCount: allWords.length
+    };
+}
+
+function setGameOfDayShareStatus(message, tone = 'neutral') {
+    const statusEl = document.getElementById('game-of-day-share-status');
+    if (!statusEl) {
+        return;
+    }
+
+    statusEl.textContent = message;
+    statusEl.classList.remove('green', 'red');
+    if (tone === 'success') {
+        statusEl.classList.add('green');
+    } else if (tone === 'error') {
+        statusEl.classList.add('red');
+    }
+}
+
+function setGameOfDayShareButtonsDisabled(disabled) {
+    const buttonIds = ['game-of-day-share-score', 'game-of-day-share-full'];
+    buttonIds.forEach(id => {
+        const button = document.getElementById(id);
+        if (button) {
+            button.disabled = disabled;
+        }
+    });
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+    const safeRadius = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + safeRadius, y);
+    ctx.lineTo(x + width - safeRadius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+    ctx.lineTo(x + width, y + height - safeRadius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+    ctx.lineTo(x + safeRadius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+    ctx.lineTo(x, y + safeRadius);
+    ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+    ctx.closePath();
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+    const words = String(text || '').split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+        return [];
+    }
+
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const nextLine = `${currentLine} ${word}`;
+        if (ctx.measureText(nextLine).width <= maxWidth) {
+            currentLine = nextLine;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+
+    lines.push(currentLine);
+    return lines;
+}
+
+function canvasToBlob(canvas) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (blob) {
+                resolve(blob);
+                return;
+            }
+            reject(new Error('Nie udało się wygenerować obrazka PNG.'));
+        }, 'image/png');
+    });
+}
+
+async function generateGameOfDayShareImage(payload, options = {}) {
+    const includeWords = Boolean(options.includeWords);
+    const width = 1080;
+    const padding = 72;
+    const cardInset = 28;
+    const contentWidth = width - (padding * 2);
+    const footerGap = 54;
+    const lineHeight = 44;
+    const sectionLineHeight = 38;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        throw new Error('Brak wsparcia canvas na tym urządzeniu.');
+    }
+
+    const summaryLines = [
+        `Wynik: ${payload.score} pkt`,
+        `Trafione: ${payload.guessedCount}/${payload.totalCount} słów`
+    ];
+
+    ctx.font = '600 34px Poppins, sans-serif';
+    const guessedLines = includeWords
+        ? wrapCanvasText(ctx, payload.guessedWords.length ? payload.guessedWords.join(', ') : 'brak', contentWidth)
+        : [];
+    const missedLines = includeWords
+        ? wrapCanvasText(ctx, payload.missedWords.length ? payload.missedWords.join(', ') : 'brak', contentWidth)
+        : [];
+
+    let height = 700;
+    if (includeWords) {
+        height += 90;
+        height += guessedLines.length * sectionLineHeight;
+        height += 70;
+        height += missedLines.length * sectionLineHeight;
+    }
+
+    const pixelRatio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width = Math.round(width * pixelRatio);
+    canvas.height = Math.round(height * pixelRatio);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.scale(pixelRatio, pixelRatio);
+
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#fff6de');
+    gradient.addColorStop(0.5, '#f7fbff');
+    gradient.addColorStop(1, '#fff0ea');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = '#fff67e';
+    drawRoundedRect(ctx, 48, 48, 150, 18, 9);
+    ctx.fill();
+    ctx.fillStyle = '#8ac1ff';
+    drawRoundedRect(ctx, width - 222, 48, 174, 18, 9);
+    ctx.fill();
+    ctx.fillStyle = '#ff9c88';
+    drawRoundedRect(ctx, width - 148, height - 70, 100, 14, 7);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    drawRoundedRect(ctx, cardInset, cardInset, width - (cardInset * 2), height - (cardInset * 2), 32);
+    ctx.fill();
+
+    ctx.fillStyle = '#1f63b1';
+    drawRoundedRect(ctx, padding, padding - 10, 280, 44, 22);
+    ctx.fill();
+
+    let cursorY = padding + 22;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 22px Poppins, sans-serif';
+    ctx.fillText('Pomocnik Literakowy', padding + 24, cursorY);
+
+    cursorY += 70;
+    ctx.fillStyle = '#172033';
+    ctx.font = '700 56px Poppins, sans-serif';
+    ctx.fillText('Gra dnia', padding, cursorY);
+
+    cursorY += 52;
+    ctx.fillStyle = '#465065';
+    ctx.font = '500 30px Poppins, sans-serif';
+    ctx.fillText(payload.dateLabel, padding, cursorY);
+
+    cursorY += 44;
+    ctx.fillStyle = '#ff9c88';
+    drawRoundedRect(ctx, padding, cursorY, 320, 122, 28);
+    ctx.fill();
+
+    ctx.fillStyle = '#5a220f';
+    ctx.font = '500 24px Poppins, sans-serif';
+    ctx.fillText('Twój wynik', padding + 28, cursorY + 38);
+    ctx.font = '700 54px Poppins, sans-serif';
+    ctx.fillText(`${payload.score} pkt`, padding + 28, cursorY + 92);
+
+    let summaryY = cursorY + 8;
+    const summaryX = padding + 372;
+    ctx.fillStyle = '#172033';
+    ctx.font = '600 32px Poppins, sans-serif';
+    summaryLines.forEach(line => {
+        ctx.fillText(line, summaryX, summaryY + lineHeight);
+        summaryY += lineHeight + 6;
+    });
+
+    cursorY += 182;
+    if (includeWords) {
+        ctx.fillStyle = '#172033';
+        ctx.font = '700 30px Poppins, sans-serif';
+        ctx.fillText('Zgadnięte słowa', padding, cursorY);
+        cursorY += 20;
+        ctx.fillStyle = '#37aa3a';
+        ctx.font = '600 34px Poppins, sans-serif';
+        guessedLines.forEach(line => {
+            cursorY += sectionLineHeight;
+            ctx.fillText(line, padding, cursorY);
+        });
+
+        cursorY += 74;
+        ctx.fillStyle = '#172033';
+        ctx.font = '700 30px Poppins, sans-serif';
+        ctx.fillText('Nieodgadnięte słowa', padding, cursorY);
+        cursorY += 20;
+        ctx.fillStyle = '#c5183e';
+        ctx.font = '600 34px Poppins, sans-serif';
+        missedLines.forEach(line => {
+            cursorY += sectionLineHeight;
+            ctx.fillText(line, padding, cursorY);
+        });
+    }
+
+    ctx.fillStyle = '#465065';
+    ctx.font = '500 24px Poppins, sans-serif';
+    ctx.fillText('pomocnik literakowy', padding, height - footerGap);
+
+    return await canvasToBlob(canvas);
+}
+
+function downloadGeneratedBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function handleGameOfDayShare(includeWords) {
+    if (gameOfDayShareInProgress) {
+        return;
+    }
+
+    try {
+        gameOfDayShareInProgress = true;
+        setGameOfDayShareButtonsDisabled(true);
+        setGameOfDayShareStatus('Przygotowuję obrazek...');
+
+        const payload = getGameOfDaySharePayload();
+        const blob = await generateGameOfDayShareImage(payload, { includeWords });
+        const suffix = includeWords ? '-wynik-slowa' : '-wynik';
+        const fileName = `pomocnik-literakowy-${payload.dateLabel}${suffix}.png`;
+        const imageFile = new File([blob], fileName, { type: 'image/png' });
+
+        const canShareFiles = !navigator.canShare || navigator.canShare({ files: [imageFile] });
+        if (navigator.share && canShareFiles) {
+            await navigator.share({
+                title: `Pomocnik Literakowy ${payload.dateLabel}`,
+                text: includeWords
+                    ? `Gra dnia ${payload.dateLabel}: ${payload.score} pkt + lista słów`
+                    : `Gra dnia ${payload.dateLabel}: ${payload.score} pkt`,
+                files: [imageFile]
+            });
+            setGameOfDayShareStatus('Udostępniono obrazek.', 'success');
+            return;
+        }
+
+        downloadGeneratedBlob(blob, fileName);
+        setGameOfDayShareStatus('Na tym urządzeniu natywne udostępnianie obrazka nie jest dostępne. PNG zostało pobrane.', 'success');
+    } catch (error) {
+        if (error && error.name === 'AbortError') {
+            setGameOfDayShareStatus('Udostępnianie anulowane.');
+        } else {
+            console.error('Failed to share game-of-day result', error);
+            setGameOfDayShareStatus('Nie udało się przygotować obrazka do udostępnienia.', 'error');
+        }
+    } finally {
+        gameOfDayShareInProgress = false;
+        setGameOfDayShareButtonsDisabled(false);
+    }
+}
+
 function showGameOfDayResultOverlay() {
     const overlay = document.getElementById('game-of-day-overlay');
     const scoreEl = document.getElementById('game-of-day-score');
@@ -598,6 +915,7 @@ function showGameOfDayResultOverlay() {
             wordListEl.appendChild(a);
         });
     }
+    setGameOfDayShareStatus('');
     if (overlay) overlay.classList.remove('hidden');
 }
 
@@ -647,11 +965,12 @@ async function startGameOfDay() {
     clearGuessList();
     configureRandomMode('daily');
     const gameOfDayDate = document.getElementById('game-of-day-date');
+    const dateLabel = getTodayDateLabel();
     if (gameOfDayDate) {
-        const today = new Date();
-        gameOfDayDate.textContent = `(${pad2(today.getDate())}-${pad2(today.getMonth() + 1)}-${today.getFullYear()})`;
+        gameOfDayDate.textContent = `(${dateLabel})`;
     }
     gameOfDayState.active = true;
+    gameOfDayState.dateLabel = dateLabel;
     gameOfDayState.score = 0;
     gameOfDayState.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
     gameOfDayState.allSolutions = [];
@@ -1125,6 +1444,20 @@ function setupGameControls() {
     if (gameOfDayReturnBtn) {
         gameOfDayReturnBtn.addEventListener('click', async () => {
             await returnToNormalMode();
+        });
+    }
+
+    const gameOfDayShareScoreBtn = document.getElementById('game-of-day-share-score');
+    if (gameOfDayShareScoreBtn) {
+        gameOfDayShareScoreBtn.addEventListener('click', async () => {
+            await handleGameOfDayShare(false);
+        });
+    }
+
+    const gameOfDayShareFullBtn = document.getElementById('game-of-day-share-full');
+    if (gameOfDayShareFullBtn) {
+        gameOfDayShareFullBtn.addEventListener('click', async () => {
+            await handleGameOfDayShare(true);
         });
     }
 

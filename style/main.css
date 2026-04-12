@@ -685,6 +685,9 @@ label { display: block; margin-bottom: 0.5rem; }
   border-radius: 8px;
   padding: 1rem 1rem;
   min-width: 280px;
+  max-width: min(92vw, 28rem);
+  max-height: min(88vh, 42rem);
+  overflow-y: auto;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -709,6 +712,37 @@ label { display: block; margin-bottom: 0.5rem; }
 
 #game-of-day-words-list a.guess-missed {
   color: #c5183e;
+}
+
+#game-of-day-share-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.2rem;
+}
+
+#game-of-day-share-actions button,
+#game-of-day-return {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem;
+}
+
+#game-of-day-share-status {
+  min-height: 1.2rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.65rem;
+  color: #666666;
+}
+
+@media (min-width: 540px) {
+  #game-of-day-share-actions {
+    flex-direction: row;
+  }
+
+  #game-of-day-share-actions button {
+    flex: 1;
+  }
 }
 
 #timer-value {
