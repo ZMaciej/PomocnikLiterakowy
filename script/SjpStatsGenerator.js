@@ -328,7 +328,7 @@ class SjpStatsGenerator {
     const firstGroupStartCounts = new Array(wordLength).fill(0);
     let scannedWordsCount = 0;
     let matchingWordsCount = 0;
-    const matchingWordIndices = [];
+    const matchingWords = [];
 
     const scanRegex = this.#createGlobalRegexWithIndices(regex);
 
@@ -359,7 +359,7 @@ class SjpStatsGenerator {
 
       if (matchedWord) {
         matchingWordsCount += 1;
-        matchingWordIndices.push(wordIndex);
+        matchingWords.push(word);
       }
     }
 
@@ -367,7 +367,7 @@ class SjpStatsGenerator {
       wordLength,
       scannedWordsCount,
       matchingWordsCount,
-      matchingWordIndices,
+      matchingWords,
       firstCapturingGroupStartCounts: firstGroupStartCounts
     };
   }

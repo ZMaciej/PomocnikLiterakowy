@@ -146,7 +146,7 @@ window.regexGroupStartStats = async function regexGroupStartStats(wordLength, re
         wordLength,
         regex: regex.toString(),
         matchingWordsCount: result.matchingWordsCount,
-        matchingWordIndices: result.matchingWordIndices,
+        matchingWords: result.matchingWords,
         firstCapturingGroupStartCounts: result.firstCapturingGroupStartCounts
     });
     return result;
