@@ -1,5 +1,6 @@
 let useMockMode = location.search.includes('mock');
 let useKidsMode = location.search.includes('kids');
+const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
 
 // ------------------------------------------------------------------------
 
@@ -322,8 +323,6 @@ input.addEventListener('input', async () => {
 
 // --- game logic ------------------------------------------------------------
 
-const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
-
 let gameState = {
     letters: '',
     solutions: [],
@@ -602,7 +601,14 @@ function finishGameOfDay() {
     gameOfDayState.active = false;
     clearGuessList();
     updateGameModeUI();
+
+    // Blokuj interfejs po zakończeniu czasu, żeby zapobiec przypadkowym kliknięciom
+    const uiLock = document.getElementById('ui-lock-overlay');
+    if (uiLock) uiLock.style.display = 'block';
     showGameOfDayResultOverlay();
+    setTimeout(() => {
+        if (uiLock) uiLock.style.display = 'none';
+    }, 2000);
 }
 
 function startGameOfDayTimer() {

@@ -675,7 +675,7 @@ label { display: block; margin-bottom: 0.5rem; }
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.35);
-  z-index: 10001;
+  z-index: 9999;
 }
 
 #game-of-day-modal {

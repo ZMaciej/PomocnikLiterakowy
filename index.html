@@ -50,7 +50,8 @@
         <button id="btn-bots" class="navigation-btn">Boty</button>
     </nav>
 
-    <!-- loading overlay shown during initial dictionary load -->
+    <div id="ui-lock-overlay" style="display:none; position:fixed; inset:0; z-index:10000; cursor:default;"></div>
+
     <div id="loading-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999;">
         <h2>Wczytywanie słownika...</h2>
         <div id="loadingAnimation" aria-label="loading animation" role="img">
@@ -120,7 +121,7 @@
       </div>
     </section>
     <section id="stats-section" class="page-section" style="display:none;">
-      Tu będą statsy
+      Tu powinny być statsy, jeśli nie ma to napisz do Maćka
     </section>
     <section id="bots-section" class="page-section" style="display:none;">
       Tu będą boty
