@@ -774,8 +774,7 @@ function swapLetters(i, j) {
 }
 
 function tilePointerDown(e) {
-    // Prevent scrolling and selection during drag
-    document.body.style.touchAction = 'none';
+    // Prevent selection during drag
     document.body.style.userSelect = 'none';
     e.preventDefault();
     const idx = parseInt(this.dataset.index, 10);
@@ -858,8 +857,7 @@ function rebuildTilesFromGameState(dragIdx) {
 }
 
 function onPointerUp(e) {
-    // Restore scrolling and selection
-    document.body.style.touchAction = '';
+    // Restore selection
     document.body.style.userSelect = '';
     
     // Remove listeners from window (use { passive: false } to match how they were added)
