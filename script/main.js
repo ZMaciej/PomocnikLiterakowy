@@ -358,6 +358,24 @@ function shuffleArray(arr, rng) {
     return arr;
 }
 
+const availableTileLetters = (() => {
+    const data = new LiterakiData();
+    return new Set(
+        Object.keys(data.lettersCount)
+            .filter(letter => letter !== '?')
+            .map(letter => letter.toLowerCase())
+    );
+})();
+
+function hasOnlyAvailableTileLetters(word) {
+    for (const ch of word) {
+        if (!availableTileLetters.has(ch.toLowerCase())) {
+            return false;
+        }
+    }
+    return true;
+}
+
 async function startGame() {
     // ensure words are loaded first
     try {
@@ -676,9 +694,46 @@ async function newGame(sjp, count) {
         gameState.roundRevealed = false;
         return;
     }
-    const pick = randomControl.wordRng.int(anagramCount);
-    const solutionList = sjp.getAnagramListFromIndex(count, pick);
-    const key = solutionList[0];
+    let key = '';
+    let solutionList = null;
+    const maxAttempts = Math.max(50, anagramCount * 2);
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const pick = randomControl.wordRng.int(anagramCount);
+        const candidateList = sjp.getAnagramListFromIndex(count, pick);
+        if (!candidateList || candidateList.length === 0) continue;
+        const candidateKey = candidateList[0];
+        if (!hasOnlyAvailableTileLetters(candidateKey)) continue;
+        key = candidateKey;
+        solutionList = candidateList;
+        break;
+    }
+
+    // Rare fallback: full scan to avoid dead-end if random attempts missed valid sets.
+    if (!solutionList) {
+        for (let idx = 0; idx < anagramCount; idx++) {
+            const candidateList = sjp.getAnagramListFromIndex(count, idx);
+            if (!candidateList || candidateList.length === 0) continue;
+            const candidateKey = candidateList[0];
+            if (!hasOnlyAvailableTileLetters(candidateKey)) continue;
+            key = candidateKey;
+            solutionList = candidateList;
+            break;
+        }
+    }
+
+    if (!solutionList) {
+        document.getElementById('letter-display').textContent = 'Brak słów możliwych do ułożenia z dostępnych kafelków';
+        document.getElementById('solution-count').textContent = '0';
+        gameState.letters = '';
+        gameState.solutions = [];
+        gameState.found.clear();
+        gameState.revealedAfterGiveUp.clear();
+        gameState.skipPenaltyApplied = false;
+        gameState.roundRevealed = false;
+        return;
+    }
+
     const letters = shuffleArray(key.split(''), randomControl.mixRng).join('');
     const solutions = Array.from(solutionList).sort();
     gameState.letters = letters;
