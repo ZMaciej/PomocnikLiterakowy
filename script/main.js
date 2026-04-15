@@ -1,6 +1,6 @@
 let useMockMode = location.search.includes('mock');
 let useKidsMode = location.search.includes('kids');
-const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
+const GAME_OF_DAY_DURATION_SECONDS = 2; // 5 minutes
 
 // ------------------------------------------------------------------------
 
@@ -345,6 +345,8 @@ let gameOfDayState = {
 };
 
 let gameOfDayShareInProgress = false;
+const SHARE_IMAGE_TEMPLATE_PATH = 'shareImage.html';
+const SHARE_IMAGE_TEMPLATE_WIDTH = 1080;
 
 let normalGameScore = 0;
 let normalGameStats = {
@@ -643,45 +645,6 @@ function setGameOfDayShareButtonsDisabled(disabled) {
     });
 }
 
-function drawRoundedRect(ctx, x, y, width, height, radius) {
-    const safeRadius = Math.min(radius, width / 2, height / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + safeRadius, y);
-    ctx.lineTo(x + width - safeRadius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
-    ctx.lineTo(x + width, y + height - safeRadius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
-    ctx.lineTo(x + safeRadius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
-    ctx.lineTo(x, y + safeRadius);
-    ctx.quadraticCurveTo(x, y, x + safeRadius, y);
-    ctx.closePath();
-}
-
-function wrapCanvasText(ctx, text, maxWidth) {
-    const words = String(text || '').split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-        return [];
-    }
-
-    const lines = [];
-    let currentLine = words[0];
-
-    for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const nextLine = `${currentLine} ${word}`;
-        if (ctx.measureText(nextLine).width <= maxWidth) {
-            currentLine = nextLine;
-        } else {
-            lines.push(currentLine);
-            currentLine = word;
-        }
-    }
-
-    lines.push(currentLine);
-    return lines;
-}
-
 function canvasToBlob(canvas) {
     return new Promise((resolve, reject) => {
         canvas.toBlob(blob => {
@@ -694,142 +657,146 @@ function canvasToBlob(canvas) {
     });
 }
 
-async function generateGameOfDayShareImage(payload, options = {}) {
-    const includeWords = Boolean(options.includeWords);
-    const width = 1080;
-    const padding = 72;
-    const cardInset = 28;
-    const contentWidth = width - (padding * 2);
-    const footerGap = 54;
-    const lineHeight = 44;
-    const sectionLineHeight = 38;
+function waitForFramePaint(frameWindow) {
+    return new Promise(resolve => frameWindow.requestAnimationFrame(() => resolve()));
+}
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-        throw new Error('Brak wsparcia canvas na tym urządzeniu.');
+async function waitForShareImageFrameReady(frameWindow) {
+    await waitForFramePaint(frameWindow);
+    await waitForFramePaint(frameWindow);
+
+    const fonts = frameWindow.document && frameWindow.document.fonts;
+    if (fonts && fonts.ready) {
+        try {
+            await Promise.race([
+                fonts.ready,
+                new Promise(resolve => setTimeout(resolve, 100))
+            ]);
+        } catch (_err) {
+            // Ignore font loading failures and continue with fallback fonts.
+        }
     }
 
-    const summaryLines = [
-        `Wynik: ${payload.score} pkt`,
-        `Trafione: ${payload.guessedCount}/${payload.totalCount} słów`
+    await waitForFramePaint(frameWindow);
+}
+
+function populateShareWordList(doc, containerId, words, variantClass) {
+    const container = doc.getElementById(containerId);
+    if (!container) {
+        return;
+    }
+
+    if (!words.length) {
+        container.textContent = 'brak';
+        container.style.color = '#888';
+        container.style.fontStyle = 'italic';
+        container.style.fontWeight = '400';
+    } else {
+        container.textContent = words.join(', ');
+    }
+}
+
+function populateShareImageDocument(doc, payload, includeWords) {
+    doc.body.classList.toggle('share-mode-full', includeWords);
+
+    const assignments = [
+        ['share-date', payload.dateLabel],
+        ['share-score', `${payload.score} pkt`],
+        ['share-guessed-count', String(payload.guessedCount)],
+        ['share-total-count', String(payload.totalCount)],
+        ['share-missed-count', String(payload.totalCount - payload.guessedCount)]
     ];
 
-    ctx.font = '600 34px Poppins, sans-serif';
-    const guessedLines = includeWords
-        ? wrapCanvasText(ctx, payload.guessedWords.length ? payload.guessedWords.join(', ') : 'brak', contentWidth)
-        : [];
-    const missedLines = includeWords
-        ? wrapCanvasText(ctx, payload.missedWords.length ? payload.missedWords.join(', ') : 'brak', contentWidth)
-        : [];
-
-    let height = 700;
-    if (includeWords) {
-        height += 90;
-        height += guessedLines.length * sectionLineHeight;
-        height += 70;
-        height += missedLines.length * sectionLineHeight;
-    }
-
-    const pixelRatio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    canvas.width = Math.round(width * pixelRatio);
-    canvas.height = Math.round(height * pixelRatio);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    ctx.scale(pixelRatio, pixelRatio);
-
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#fff6de');
-    gradient.addColorStop(0.5, '#f7fbff');
-    gradient.addColorStop(1, '#fff0ea');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-
-    ctx.fillStyle = '#fff67e';
-    drawRoundedRect(ctx, 48, 48, 150, 18, 9);
-    ctx.fill();
-    ctx.fillStyle = '#8ac1ff';
-    drawRoundedRect(ctx, width - 222, 48, 174, 18, 9);
-    ctx.fill();
-    ctx.fillStyle = '#ff9c88';
-    drawRoundedRect(ctx, width - 148, height - 70, 100, 14, 7);
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-    drawRoundedRect(ctx, cardInset, cardInset, width - (cardInset * 2), height - (cardInset * 2), 32);
-    ctx.fill();
-
-    ctx.fillStyle = '#1f63b1';
-    drawRoundedRect(ctx, padding, padding - 10, 280, 44, 22);
-    ctx.fill();
-
-    let cursorY = padding + 22;
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '600 22px Poppins, sans-serif';
-    ctx.fillText('Pomocnik Literakowy', padding + 24, cursorY);
-
-    cursorY += 70;
-    ctx.fillStyle = '#172033';
-    ctx.font = '700 56px Poppins, sans-serif';
-    ctx.fillText('Gra dnia', padding, cursorY);
-
-    cursorY += 52;
-    ctx.fillStyle = '#465065';
-    ctx.font = '500 30px Poppins, sans-serif';
-    ctx.fillText(payload.dateLabel, padding, cursorY);
-
-    cursorY += 44;
-    ctx.fillStyle = '#ff9c88';
-    drawRoundedRect(ctx, padding, cursorY, 320, 122, 28);
-    ctx.fill();
-
-    ctx.fillStyle = '#5a220f';
-    ctx.font = '500 24px Poppins, sans-serif';
-    ctx.fillText('Twój wynik', padding + 28, cursorY + 38);
-    ctx.font = '700 54px Poppins, sans-serif';
-    ctx.fillText(`${payload.score} pkt`, padding + 28, cursorY + 92);
-
-    let summaryY = cursorY + 8;
-    const summaryX = padding + 372;
-    ctx.fillStyle = '#172033';
-    ctx.font = '600 32px Poppins, sans-serif';
-    summaryLines.forEach(line => {
-        ctx.fillText(line, summaryX, summaryY + lineHeight);
-        summaryY += lineHeight + 6;
+    assignments.forEach(([id, value]) => {
+        const element = doc.getElementById(id);
+        if (element) {
+            element.textContent = value;
+        }
     });
 
-    cursorY += 182;
-    if (includeWords) {
-        ctx.fillStyle = '#172033';
-        ctx.font = '700 30px Poppins, sans-serif';
-        ctx.fillText('Zgadnięte słowa', padding, cursorY);
-        cursorY += 20;
-        ctx.fillStyle = '#37aa3a';
-        ctx.font = '600 34px Poppins, sans-serif';
-        guessedLines.forEach(line => {
-            cursorY += sectionLineHeight;
-            ctx.fillText(line, padding, cursorY);
+    populateShareWordList(doc, 'share-guessed-words', payload.guessedWords, 'guessed');
+    populateShareWordList(doc, 'share-missed-words', payload.missedWords, 'missed');
+}
+
+function createShareImageFrame() {
+    return new Promise((resolve, reject) => {
+        const iframe = document.createElement('iframe');
+        iframe.src = SHARE_IMAGE_TEMPLATE_PATH;
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.tabIndex = -1;
+        iframe.style.position = 'fixed';
+        iframe.style.left = '-20000px';
+        iframe.style.top = '0';
+        iframe.style.width = `${SHARE_IMAGE_TEMPLATE_WIDTH}px`;
+        iframe.style.height = '4000px';
+        iframe.style.border = '0';
+        iframe.style.opacity = '0';
+        iframe.style.pointerEvents = 'none';
+        iframe.style.visibility = 'hidden';
+
+        const cleanup = () => {
+            iframe.removeEventListener('load', handleLoad);
+            iframe.removeEventListener('error', handleError);
+            if (iframe.parentNode) {
+                iframe.parentNode.removeChild(iframe);
+            }
+        };
+
+        const handleLoad = () => resolve({ iframe, cleanup });
+        const handleError = () => {
+            cleanup();
+            reject(new Error('Nie udało się wczytać szablonu share image.'));
+        };
+
+        iframe.addEventListener('load', handleLoad, { once: true });
+        iframe.addEventListener('error', handleError, { once: true });
+        document.body.appendChild(iframe);
+    });
+}
+
+async function generateGameOfDayShareImage(payload, options = {}) {
+    const includeWords = Boolean(options.includeWords);
+    const { iframe, cleanup } = await createShareImageFrame();
+
+    try {
+        const frameWindow = iframe.contentWindow;
+        const frameDoc = iframe.contentDocument;
+        if (!frameWindow || !frameDoc) {
+            throw new Error('Nie udało się otworzyć szablonu share image.');
+        }
+
+        populateShareImageDocument(frameDoc, payload, includeWords);
+        await waitForShareImageFrameReady(frameWindow);
+
+        const root = frameDoc.getElementById('share-image-root');
+        if (!root) {
+            throw new Error('Szablon share image nie zawiera #share-image-root.');
+        }
+
+        if (typeof window.html2canvas !== 'function') {
+            throw new Error('Biblioteka html2canvas nie jest dostępna.');
+        }
+
+        const width = Math.ceil(root.getBoundingClientRect().width || SHARE_IMAGE_TEMPLATE_WIDTH);
+        const height = Math.ceil(Math.max(root.getBoundingClientRect().height, root.scrollHeight));
+
+        const canvas = await window.html2canvas(root, {
+            backgroundColor: null,
+            width,
+            height,
+            scale: Math.max(1, Math.min(2, window.devicePixelRatio || 1)),
+            useCORS: false,
+            logging: false,
+            removeContainer: true,
+            foreignObjectRendering: false,
+            windowWidth: width,
+            windowHeight: height
         });
 
-        cursorY += 74;
-        ctx.fillStyle = '#172033';
-        ctx.font = '700 30px Poppins, sans-serif';
-        ctx.fillText('Nieodgadnięte słowa', padding, cursorY);
-        cursorY += 20;
-        ctx.fillStyle = '#c5183e';
-        ctx.font = '600 34px Poppins, sans-serif';
-        missedLines.forEach(line => {
-            cursorY += sectionLineHeight;
-            ctx.fillText(line, padding, cursorY);
-        });
+        return await canvasToBlob(canvas);
+    } finally {
+        cleanup();
     }
-
-    ctx.fillStyle = '#465065';
-    ctx.font = '500 24px Poppins, sans-serif';
-    ctx.fillText('pomocnik literakowy', padding, height - footerGap);
-
-    return await canvasToBlob(canvas);
 }
 
 function downloadGeneratedBlob(blob, fileName) {
@@ -1329,7 +1296,6 @@ function fireConfetti(){
     relativePosition = getRelativeCoordinatesOnScreen('check-button');
     var defaults = {
         spread: 55,
-        // colors: ['#c4b700', '#1fa741', '#1f63b1', '#b93f26'],
         colors: ['#fff67e','#7eff9f','#8ac1ff','#ff9c88'],
         startVelocity: 30,
         particleCount: 100,
@@ -1700,108 +1666,3 @@ async function getWordsListWithXVowels(vowelCount, wordLength) {
 //  - Najczęstsze litery top 10: chyba fajniej dać kolumnę z najczęstszą pozycją
 //    jako pierwsza a liczbę/procent na końcu, bo to drugorzędna informacja
 //  - Pole do wprowadzenie dowolnej literki i pokazanie statystyk tej litery
-
-// statystyki zbiorcze dla podanego zbioru długości liter w słowie np. od 7 do
-// 10 i 12:
-// - liczba słów o danych długościach + jaki to procent wszystkich słów
-// - najpopularniejsze litery (top 10) + ich procent występowania
-// - najpopularniejsze początki i końcówki 2 - 4 literowe (top 10) + ich procent
-//   występowania
-// - najczęstsze ciągi literowe 2 - 4 literowe (top 10) + ich procent
-//   występowania
-// - najczęściej występujące litery razem
-// - najwyżej punktowane słowa (top 10) + ich punktacja per literę
-// - słowa z największą liczbą anagramów (top 10) + liczba anagramów ? <-- do
-//   przemyślenia
-// - możliwość wprowadzenia ciągu liter od 1 do 4 i pokazanie statystyk dla tego
-//   ciągu (procent występowania, najpopularniejsze pozycje w słowie) checkbox
-//   do sprawdzania dokładnych dopasowań czyli po wpisaniu ciągu "abc"
-//   pokazywałoby statystyki dla "abc" a po odznaczeniu pokazywałoby statystyki
-//   dla tych liter niezależnie od kolejności i bliskości, czyli np. "abc"
-//   dawałoby statystyki dla wszystkich słów zawierających litery a, b i c
-//   gdziekolwiek w słowie. Pokazanie przykładowych słów zawierających ten ciąg (np. dla "abc" pokazałoby słowa "abcde")
-
-// co dodatkowo można pokazać dla statystyki pojedyńczego zbioru słów (np. tylko
-// 7 literowych):
-// - przy konkretnych ciągach liter (1-4) można pokazać z jaką częstotliwością
-//   występują te litery na konkretnych pozycjach w słowie, np. dla ciągu "nie"
-//   można pokazać, że w x% przypadków ciąg startuje z pierwszej pozycji w
-//   słowie, a w y% przypadków jest na końcu słowa, a w z% jest gdzieś w środku.
-//   Można to pokazać w formie wykresu słupkowego z pozycjami 1-7 (dla 7
-//   literowych) na osi X i procentem występowania na osi Y. Tutaj oczywiście
-//   jeśli wybrany ciąg jest 1 literowy to dla słowa 7 literowego mamy 7
-//   możliwych pozycji, jeśli ciąg 2 literowy to 6 możliwych pozycji itd.
-// - jaki procent wszystkich słów to słowa x literowe, np. 7 literowe to x% wszystkich słów
-
-// Wytyczne do ekstrakcji statystyk dla ciągów literowych 1-4 literowych:
-
-// jak ma wyglądać ekstrakcja statystyk:
-// - przygotuj wszystkie kombinacje ciągów liter 1-4
-//   - czyli wszystkie kombinacje 4 literowe, np AAAA, AAAĄ, AAAB, ..., FGKL,
-//     ..., ŻŻŻŹ, ŻŻŻŻ
-//   - wszystkie 3 literowe
-//   - wszystkie 2 literowe
-//   - wszystkie 1 literowe (czyli po prostu alfabet)
-// - na przygotowanych kombinacjach wykonaj dla każdego słowa ze słownika podane
-//   operacje:
-
-//  if (słowo zawiera dokładny ciąg literowy) {
-//   - zwiększ licznik dokładnych dopasowań dla tego ciągu
-//   - dodaj indeks tego słowa do kolekcji słów zawierających dokładny ciąg
-//   - sprawdź pozycję tego ciągu w słowie i zwiększ licznik dla tej pozycji
-// }
-// posortowanyCiąg = ciąg literowy posortowany alfabetycznie
-// if (słowo zawiera wszystkie litery z ciągu, ale w dowolnej kolejności i indeks słowa nie jest jeszcze w kolekcji dopasowań pod kluczem shuffledOccurancesCollection[posortowanyCiąg]) {
-//   - zwiększ licznik dopasowań bez zachowania kolejności dla tego ciągu
-//   - dodaj indeks tego słowa do kolekcji słów zawierających te litery w dowolnej kolejności
-// }
-
-// - po wykonaniu tych operacji dla wszystkich słów będziesz miał gotowe
-//   statystyki dla wszystkich ciągów 1-4 literowych, które możesz potem
-//   wykorzystać do wyświetlenia statystyk dla dowolnego ciągu wpisanego przez
-//   użytkownika
-// - tak przygotowane słowniki powinny mieć też możliwość bycia przeglądanymi w
-//   formie listy, żeby można było łatwo znaleźć ciągi o konkretnych
-//   właściwościach, np. znaleźć ciągi 3 literowe, które najczęściej występują
-//   na końcu słów 7 literowych
-// - jak najmniej informacji powinno być duplikowane, więc jeśli jakiś ciąg jest
-//   zarówno początkiem jak i końcem słowa to powinien być zapisany tylko raz
-
-// przykładowe wywyłanie statystyki dla ciągu "nie":
-// stats.letterCount[7].collection["nie"] -> {
-//   exactOccurrencesCount: 12345
-//   startPositionDistribution: { 1000, 2000, 3000, 4000, 2345 },
-//   exactOccurrenceMatches: [123, 4567, 8901, ...], // indices of words with exact "nie"
-//   shuffledOccurrenceMatches: [234, 6789, 1234, ...], // indices of words with "n", "i", "e" anywhere
-//   shuffledOccurrencesCount: 54321, // includes all occurrences of "n", "i", "e" in any order, so it should be >= exactOccurrencesCount
-// }
-
-// w przypadku shuffledOccurrencesCount i shuffledOccurrenceMatches powinniśmy
-// mieć osobną kolekcję która by była linkowana do rekordu z pierwotnej
-// kolekcji, chodzi tutaj o nieduplikowanie informacji, także jeśli będzie
-// sprawdzany ciąg "nie" to w jego rekordzie będzie linkowana kolekcja z ciągiem
-// "ein", "eni", "ine", "nie" itd. i wszystkie te ciągi będą linkowały do tej
-// samej kolekcji shuffledOccurrenceMatches i shuffledOccurrencesCount, żeby nie
-// duplikować informacji o tym ile jest słów zawierających litery n, i, e w
-// dowolnym miejscu i jakie to są słowa, bo to jest informacja niezależna od
-// kolejności tych liter. Oczywiście dla ciągu 1 literowego typu "a" nie ma
-// różnicy czy to jest exact czy shuffled, więc wtedy exactOccurrencesCount
-// powinno być równe shuffledOccurrencesCount a exactOccurrenceMatches powinno
-// być równe shuffledOccurrenceMatches, ale dla ciągu 3 literowego typu "nie"
-// może być duża różnica między tymi wartościami. Kolekcję linkowaną shuffled
-// najlepiej otagować posortowanymi alfabetycznie literami które szukamy, czyli
-// dla ciągu "nie" byłoby to "ein" i pod takim kluczem byłaby zapisana kolekcja
-// wszystkich słów zawierających litery e, i, n gdziekolwiek w słowie,
-// niezależnie od kolejności, czyli np. "biedne" by się tam znalazło, ale
-// "nabce" już nie, bo nie zawiera litery "i". Dzięki temu dla każdego ciągu
-// literowego mamy szybki dostęp do statystyk dla dokładnych dopasowań i dla
-// dopasowań bez zachowania kolejności, a jednocześnie mamy zminimalizowane
-// duplikowanie informacji o tym które słowa zawierają dane litery gdziekolwiek
-// w słowie.
-
-// w trakcie generowania statystyk musimy być szczególnie uważni podczas
-// dodawania do kolekcji shuffled czyli jak sprawdzamy aktualnie jakieś słowo
-// dla ciągu "nie" to to samo słowo nie powinno wylądować w statystykach
-// shuffled podczas sprawdzania ciągu "ein", "eni", "ine" itd.. Czyli zwiększamy
-// statystyki shuffled jedynie wtedy gdy indeks słowa nie występuje jeszcze w
-// kolekcji shuffledOccurrenceMatches.

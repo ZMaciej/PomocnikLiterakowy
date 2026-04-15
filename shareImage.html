@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>Pomocnik Literakowy - Share Image</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-kerning: none; font-variant-ligatures: none; font-feature-settings: "kern" 0, "liga" 0; }
+        html, body { width: 878px; background: white; font-family: Poppins, "Segoe UI", sans-serif; color: black; }
+        body:not(.share-mode-full) #share-word-sections { display: none; }
+
+        #share-image-root {
+            width: 878px;
+            padding: 33px;
+            background: white;
+            border-radius: 12px;
+            outline: 22px #FEF1EB solid;
+        }
+
+        .share-header {
+            width: 471px;
+            margin: 0 auto 24px;
+            text-align: center;
+        }
+
+        .share-header-title {
+            height: 65px;
+            line-height: 65px;
+            font-size: 36px;
+            font-weight: 700;
+        }
+
+        .share-header-subtitle {
+            font-size: 28px;
+            font-weight: 400;
+        }
+
+        .share-header-date {
+            height: 30px;
+            line-height: 30px;
+            font-size: 20px;
+            font-weight: 400;
+        }
+
+        .share-score-wrap {
+            width: 100%;
+            border-radius: 20px;
+            margin-bottom: 24px;
+            overflow: hidden;
+            background: linear-gradient(133deg, #E4F7FF 0%, #FDF7DF 100%);
+        }
+
+        .share-score-table {
+            width: 100%;
+            height: 363px;
+            border-collapse: collapse;
+        }
+
+        .share-score-img-cell {
+            width: 285px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .share-score-img-cell img {
+            width: 266px;
+            height: 250px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .share-score-info-cell {
+            vertical-align: middle;
+            padding-right: 28px;
+        }
+
+        .share-score-label {
+            font-size: 32px;
+            font-weight: 500;
+            margin-bottom: 14px;
+        }
+
+        .share-score-value {
+            font-size: 96px;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 14px;
+        }
+
+        .share-score-trafione {
+            font-size: 32px;
+            font-weight: 500;
+        }
+
+        #share-word-sections {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .share-word-cell {
+            width: 50%;
+            vertical-align: top;
+            overflow: visible;
+        }
+
+        .share-word-cell-left {
+            padding-right: 24px;
+        }
+
+        .share-word-heading {
+            font-size: 32px;
+            font-weight: 500;
+            margin-bottom: 7px;
+        }
+
+        .share-word-list {
+            font-size: 28px;
+            font-weight: 600;
+            word-break: break-word;
+            white-space: normal;
+            overflow: visible;
+        }
+
+        #share-guessed-words { color: #1B8543; }
+        #share-missed-words  { color: #9C2B38; }
+    </style>
+</head>
+<body class="share-mode-full">
+    <div id="share-image-root">
+
+        <!-- Header -->
+        <div class="share-header">
+            <div class="share-header-title">Pomocnik Literakowy</div>
+            <div id="share-game-type" class="share-header-subtitle">"Gra Dnia"</div>
+            <div id="share-date" class="share-header-date">15-04-2026</div>
+        </div>
+
+        <!-- Score card -->
+        <div class="share-score-wrap">
+            <table class="share-score-table">
+                <tr>
+                    <td class="share-score-img-cell">
+                        <img id="share-image" src="pingwinDab.png" alt="" />
+                    </td>
+                    <td class="share-score-info-cell">
+                        <div class="share-score-label">Twój wynik</div>
+                        <div id="share-score" class="share-score-value">225 pkt</div>
+                        <div class="share-score-trafione">Trafione: <span id="share-guessed-count">6</span>/<span id="share-total-count">21</span> słów</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Word sections -->
+        <table id="share-word-sections">
+            <tr>
+                <td class="share-word-cell share-word-cell-left">
+                    <div class="share-word-heading">Zgadnięte słowa:</div>
+                    <div id="share-guessed-words" class="share-word-list">anagram, granat, maraton</div>
+                </td>
+                <td class="share-word-cell">
+                    <div class="share-word-heading">Nieodgadnięte słowa:</div>
+                    <div id="share-missed-words" class="share-word-list">armat, taran</div>
+                </td>
+            </tr>
+        </table>
+
+    </div>
+</body>
+</html>
