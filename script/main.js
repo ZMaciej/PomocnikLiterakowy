@@ -1,6 +1,6 @@
 let useMockMode = location.search.includes('mock');
 let useKidsMode = location.search.includes('kids');
-const GAME_OF_DAY_DURATION_SECONDS = 2; // 5 minutes
+const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
 
 // ------------------------------------------------------------------------
 
@@ -340,7 +340,7 @@ let gameOfDayState = {
     secondsLeft: GAME_OF_DAY_DURATION_SECONDS,
     timerId: null,
     allSolutions: [],
-    allFound: new Set(),
+    currentRoundStartIdx: 0,
     dateLabel: ''
 };
 
@@ -596,13 +596,11 @@ function getUniqueWordsPreserveOrder(words) {
 }
 
 function getGameOfDaySharePayload() {
-    const allWords = getUniqueWordsPreserveOrder(gameOfDayState.allSolutions);
     const guessedWords = [];
     const missedWords = [];
 
-    allWords.forEach(word => {
-        const normalized = word.trim().toLowerCase();
-        if (gameOfDayState.allFound.has(normalized)) {
+    gameOfDayState.allSolutions.forEach(({ word, found }) => {
+        if (found) {
             guessedWords.push(word);
         } else {
             missedWords.push(word);
@@ -612,11 +610,11 @@ function getGameOfDaySharePayload() {
     return {
         dateLabel: gameOfDayState.dateLabel || getTodayDateLabel(),
         score: gameOfDayState.score,
-        allWords,
+        allWords: gameOfDayState.allSolutions.map(e => e.word),
         guessedWords,
         missedWords,
         guessedCount: guessedWords.length,
-        totalCount: allWords.length
+        totalCount: gameOfDayState.allSolutions.length
     };
 }
 
@@ -863,7 +861,7 @@ function showGameOfDayResultOverlay() {
     
     if (wordListEl) {
         wordListEl.innerHTML = '';
-        gameOfDayState.allSolutions.forEach((word, idx) => {
+        gameOfDayState.allSolutions.forEach(({ word, found }, idx) => {
             if (idx > 0) {
                 const comma = document.createTextNode(', ');
                 wordListEl.appendChild(comma);
@@ -873,8 +871,7 @@ function showGameOfDayResultOverlay() {
             a.href = `https://sjp.pl/${encodeURIComponent(word)}`;
             a.target = '_blank';
             a.rel = 'noopener';
-            const normalizedWord = word.trim().toLowerCase();
-            if (gameOfDayState.allFound.has(normalizedWord)) {
+            if (found) {
                 a.classList.add('guess-correct');
             } else {
                 a.classList.add('guess-missed');
@@ -941,7 +938,7 @@ async function startGameOfDay() {
     gameOfDayState.score = 0;
     gameOfDayState.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
     gameOfDayState.allSolutions = [];
-    gameOfDayState.allFound.clear();
+    gameOfDayState.currentRoundStartIdx = 0;
     showRecentDiff(0);
     updateGameModeUI();
     gameState.count = 7;
@@ -1029,7 +1026,8 @@ async function newGame(sjp, count) {
     gameState.skipPenaltyApplied = false;
     gameState.roundRevealed = false;
     if (gameOfDayState.active) {
-        gameState.solutions.forEach(w => gameOfDayState.allSolutions.push(w));
+        gameOfDayState.currentRoundStartIdx = gameOfDayState.allSolutions.length;
+        gameState.solutions.forEach(w => gameOfDayState.allSolutions.push({ word: w, found: false }));
     } else {
         // W trybie normalnym dodaj do całkowitej liczby możliwych słów
         normalGameStats.totalSolutions += solutions.length;
@@ -1251,7 +1249,12 @@ async function handleGuess(guess) {
     if (gameState.solutions.includes(normalized) && !gameState.found.has(normalized)) {
         gameState.found.add(normalized);
         if (gameOfDayState.active) {
-            gameOfDayState.allFound.add(normalized);
+            const roundEntry = gameOfDayState.allSolutions.find(
+                (entry, i) => i >= gameOfDayState.currentRoundStartIdx
+                    && entry.word.toLowerCase() === normalized
+                    && !entry.found
+            );
+            if (roundEntry) roundEntry.found = true;
             updateScore(50);
         } else {
             // W trybie normalnym dodaj do całkowitej liczby znalezionych
