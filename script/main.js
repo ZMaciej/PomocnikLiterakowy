@@ -1,6 +1,6 @@
 let useMockMode = location.search.includes('mock');
 let useKidsMode = location.search.includes('kids');
-const GAME_OF_DAY_DURATION_SECONDS = 2; // 5 minutes
+const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
 
 // ------------------------------------------------------------------------
 
