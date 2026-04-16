@@ -772,12 +772,16 @@ async function generateGameOfDayShareImage(payload, options = {}) {
             throw new Error('Szablon share image nie zawiera #share-image-root.');
         }
 
-        if (typeof window.html2canvas !== 'function') {
-            throw new Error('Biblioteka html2canvas nie jest dostępna.');
-        }
-
         const width = Math.ceil(root.getBoundingClientRect().width || SHARE_IMAGE_TEMPLATE_WIDTH);
         const height = Math.ceil(Math.max(root.getBoundingClientRect().height, root.scrollHeight));
+
+        if (typeof window.domtoimage !== 'undefined') {
+            return await window.domtoimage.toBlob(root, { width, height, bgcolor: '#ffffff' });
+        }
+
+        if (typeof window.html2canvas !== 'function') {
+            throw new Error('Brak biblioteki do generowania obrazka.');
+        }
 
         const canvas = await window.html2canvas(root, {
             backgroundColor: null,
