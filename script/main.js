@@ -835,6 +835,7 @@ async function handleGameOfDayShare(includeWords) {
         const payload = getGameOfDaySharePayload();
         const preGenKey = includeWords ? 'full' : 'score';
         let blob = preGeneratedShareBlobs[preGenKey];
+        const blobWasPreGenerated = !!blob;
 
         if (!blob) {
             setGameOfDayShareStatus('Przygotowuję obrazek...');
@@ -846,8 +847,13 @@ async function handleGameOfDayShare(includeWords) {
         const fileName = `pomocnik-literakowy-${payload.dateLabel}${suffix}.png`;
         const imageFile = new File([blob], fileName, { type: 'image/png' });
 
+        const hasShare = !!navigator.share;
         const canShareFiles = !navigator.canShare || navigator.canShare({ files: [imageFile] });
-        if (navigator.share && canShareFiles) {
+        const debugInfo = `[blob:${blobWasPreGenerated?'pre':'live'} ${blob.size}B | share:${hasShare} | canShare:${canShareFiles}]`;
+        console.log('[Share]', debugInfo);
+        setGameOfDayShareStatus(debugInfo);
+
+        if (hasShare && canShareFiles) {
             await navigator.share({
                 title: `Pomocnik Literakowy ${payload.dateLabel}`,
                 text: includeWords
@@ -866,8 +872,9 @@ async function handleGameOfDayShare(includeWords) {
             setGameOfDayShareStatus('Udostępnianie anulowane.');
         } else {
             console.error('Failed to share game-of-day result', error);
-            const detail = error && error.message ? ` (${error.message})` : '';
-            setGameOfDayShareStatus(`Nie udało się przygotować obrazka do udostępnienia.${detail}`, 'error');
+            const name = error && error.name ? error.name : 'UnknownError';
+            const msg = error && error.message ? error.message : String(error);
+            setGameOfDayShareStatus(`Błąd [${name}]: ${msg}`, 'error');
         }
     } finally {
         gameOfDayShareInProgress = false;
