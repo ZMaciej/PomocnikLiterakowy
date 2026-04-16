@@ -1,6 +1,6 @@
 let useMockMode = location.search.includes('mock');
 let useKidsMode = location.search.includes('kids');
-const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
+const GAME_OF_DAY_DURATION_SECONDS = 2; // 5 minutes
 
 // ------------------------------------------------------------------------
 
@@ -771,14 +771,14 @@ async function generateGameOfDayShareImage(payload, options = {}) {
             throw new Error('Szablon share image nie zawiera #share-image-root.');
         }
 
-        if (typeof window.html2canvas !== 'function') {
+        if (typeof frameWindow.html2canvas !== 'function') {
             throw new Error('Biblioteka html2canvas nie jest dostępna.');
         }
 
         const width = Math.ceil(root.getBoundingClientRect().width || SHARE_IMAGE_TEMPLATE_WIDTH);
         const height = Math.ceil(Math.max(root.getBoundingClientRect().height, root.scrollHeight));
 
-        const canvas = await window.html2canvas(root, {
+        const canvas = await frameWindow.html2canvas(root, {
             backgroundColor: null,
             width,
             height,
@@ -844,7 +844,8 @@ async function handleGameOfDayShare(includeWords) {
             setGameOfDayShareStatus('Udostępnianie anulowane.');
         } else {
             console.error('Failed to share game-of-day result', error);
-            setGameOfDayShareStatus('Nie udało się przygotować obrazka do udostępnienia.', 'error');
+            const detail = error && error.message ? ` (${error.message})` : '';
+            setGameOfDayShareStatus(`Nie udało się przygotować obrazka do udostępnienia.${detail}`, 'error');
         }
     } finally {
         gameOfDayShareInProgress = false;
