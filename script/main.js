@@ -1,6 +1,6 @@
 let useMockMode = location.search.includes('mock');
 let useKidsMode = location.search.includes('kids');
-const GAME_OF_DAY_DURATION_SECONDS = 1; // 5 minutes
+const GAME_OF_DAY_DURATION_SECONDS = 2; // 5 minutes
 
 // ------------------------------------------------------------------------
 
@@ -345,6 +345,7 @@ let gameOfDayState = {
 };
 
 let gameOfDayShareInProgress = false;
+let preGeneratedShareBlobs = { score: null, full: null };
 const SHARE_IMAGE_TEMPLATE_PATH = 'shareImage.html';
 const SHARE_IMAGE_TEMPLATE_WIDTH = 1080;
 
@@ -797,43 +798,18 @@ async function generateGameOfDayShareImage(payload, options = {}) {
     }
 }
 
-function isIOS() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-let sharePreviewObjectUrl = null;
-
-function showShareImagePreview(blob) {
-    const overlay = document.getElementById('share-image-preview-overlay');
-    const img = document.getElementById('share-image-preview-img');
-    const closeBtn = document.getElementById('share-image-preview-close');
-    if (!overlay || !img) return;
-
-    if (sharePreviewObjectUrl) {
-        URL.revokeObjectURL(sharePreviewObjectUrl);
+async function preGenerateShareImages() {
+    const payload = getGameOfDaySharePayload();
+    try {
+        preGeneratedShareBlobs.score = await generateGameOfDayShareImage(payload, { includeWords: false });
+    } catch (e) {
+        console.warn('[Share] Pre-generation of score image failed', e);
     }
-    sharePreviewObjectUrl = URL.createObjectURL(blob);
-    img.src = sharePreviewObjectUrl;
-    overlay.classList.remove('hidden');
-
-    const close = () => {
-        overlay.classList.add('hidden');
-        img.src = '';
-        if (sharePreviewObjectUrl) {
-            URL.revokeObjectURL(sharePreviewObjectUrl);
-            sharePreviewObjectUrl = null;
-        }
-        overlay.removeEventListener('click', handleOverlayClick);
-        if (closeBtn) closeBtn.removeEventListener('click', close);
-    };
-
-    const handleOverlayClick = (e) => {
-        if (e.target === overlay) close();
-    };
-
-    overlay.addEventListener('click', handleOverlayClick);
-    if (closeBtn) closeBtn.addEventListener('click', close, { once: true });
+    try {
+        preGeneratedShareBlobs.full = await generateGameOfDayShareImage(payload, { includeWords: true });
+    } catch (e) {
+        console.warn('[Share] Pre-generation of full image failed', e);
+    }
 }
 
 function downloadGeneratedBlob(blob, fileName) {
@@ -855,22 +831,20 @@ async function handleGameOfDayShare(includeWords) {
     try {
         gameOfDayShareInProgress = true;
         setGameOfDayShareButtonsDisabled(true);
-        setGameOfDayShareStatus('Przygotowuję obrazek...');
 
         const payload = getGameOfDaySharePayload();
-        const blob = await generateGameOfDayShareImage(payload, { includeWords });
+        const preGenKey = includeWords ? 'full' : 'score';
+        let blob = preGeneratedShareBlobs[preGenKey];
+
+        if (!blob) {
+            setGameOfDayShareStatus('Przygotowuję obrazek...');
+            blob = await generateGameOfDayShareImage(payload, { includeWords });
+            preGeneratedShareBlobs[preGenKey] = blob;
+        }
+
         const suffix = includeWords ? '-wynik-slowa' : '-wynik';
         const fileName = `pomocnik-literakowy-${payload.dateLabel}${suffix}.png`;
         const imageFile = new File([blob], fileName, { type: 'image/png' });
-
-        // iOS Safari loses the user-activation context during async image generation,
-        // causing navigator.share({ files }) to throw NotAllowedError.
-        // Show the image in an overlay instead so the user can long-press to save/share.
-        if (isIOS()) {
-            showShareImagePreview(blob);
-            setGameOfDayShareStatus('Przytrzymaj obrazek, aby zapisać lub udostępnić.', 'success');
-            return;
-        }
 
         const canShareFiles = !navigator.canShare || navigator.canShare({ files: [imageFile] });
         if (navigator.share && canShareFiles) {
@@ -958,6 +932,9 @@ function finishGameOfDay() {
     setTimeout(() => {
         if (uiLock) uiLock.style.display = 'none';
     }, 2000);
+
+    preGeneratedShareBlobs = { score: null, full: null };
+    preGenerateShareImages();
 }
 
 function startGameOfDayTimer() {
@@ -974,6 +951,7 @@ function startGameOfDayTimer() {
 }
 
 async function startGameOfDay() {
+    preGeneratedShareBlobs = { score: null, full: null };
     hideGameOfDayResultOverlay();
     clearGuessList();
     configureRandomMode('daily');
