@@ -772,18 +772,18 @@ async function generateGameOfDayShareImage(payload, options = {}) {
             throw new Error('Szablon share image nie zawiera #share-image-root.');
         }
 
-        if (typeof frameWindow.html2canvas !== 'function') {
+        if (typeof window.html2canvas !== 'function') {
             throw new Error('Biblioteka html2canvas nie jest dostępna.');
         }
 
         const width = Math.ceil(root.getBoundingClientRect().width || SHARE_IMAGE_TEMPLATE_WIDTH);
         const height = Math.ceil(Math.max(root.getBoundingClientRect().height, root.scrollHeight));
 
-        const canvas = await frameWindow.html2canvas(root, {
+        const canvas = await window.html2canvas(root, {
             backgroundColor: null,
             width,
             height,
-            scale: Math.max(1, Math.min(2, window.devicePixelRatio || 1)),
+            scale: 1,
             useCORS: false,
             logging: false,
             removeContainer: true,
@@ -799,6 +799,8 @@ async function generateGameOfDayShareImage(payload, options = {}) {
 }
 
 async function preGenerateShareImages() {
+    setGameOfDayShareButtonsDisabled(true);
+    setGameOfDayShareStatus('Przygotowuję obrazek...');
     const payload = getGameOfDaySharePayload();
     try {
         preGeneratedShareBlobs.score = await generateGameOfDayShareImage(payload, { includeWords: false });
@@ -810,6 +812,8 @@ async function preGenerateShareImages() {
     } catch (e) {
         console.warn('[Share] Pre-generation of full image failed', e);
     }
+    setGameOfDayShareStatus('');
+    setGameOfDayShareButtonsDisabled(false);
 }
 
 function downloadGeneratedBlob(blob, fileName) {
