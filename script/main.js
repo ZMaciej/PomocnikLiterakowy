@@ -346,8 +346,6 @@ let gameOfDayState = {
 
 let gameOfDayShareInProgress = false;
 let preGeneratedShareBlobs = { score: null, full: null };
-const SHARE_IMAGE_TEMPLATE_PATH = 'shareImage.html';
-const SHARE_IMAGE_TEMPLATE_WIDTH = 1080;
 
 let normalGameScore = 0;
 let normalGameStats = {
@@ -644,162 +642,8 @@ function setGameOfDayShareButtonsDisabled(disabled) {
     });
 }
 
-function canvasToBlob(canvas) {
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(blob => {
-            if (blob) {
-                resolve(blob);
-                return;
-            }
-            reject(new Error('Nie udało się wygenerować obrazka PNG.'));
-        }, 'image/png');
-    });
-}
-
-function waitForFramePaint(frameWindow) {
-    return new Promise(resolve => frameWindow.requestAnimationFrame(() => resolve()));
-}
-
-async function waitForShareImageFrameReady(frameWindow) {
-    await waitForFramePaint(frameWindow);
-    await waitForFramePaint(frameWindow);
-
-    const fonts = frameWindow.document && frameWindow.document.fonts;
-    if (fonts && fonts.ready) {
-        try {
-            await Promise.race([
-                fonts.ready,
-                new Promise(resolve => setTimeout(resolve, 100))
-            ]);
-        } catch (_err) {
-            // Ignore font loading failures and continue with fallback fonts.
-        }
-    }
-
-    await waitForFramePaint(frameWindow);
-}
-
-function populateShareWordList(doc, containerId, words, variantClass) {
-    const container = doc.getElementById(containerId);
-    if (!container) {
-        return;
-    }
-
-    if (!words.length) {
-        container.textContent = 'brak';
-        container.style.color = '#888';
-        container.style.fontStyle = 'italic';
-        container.style.fontWeight = '400';
-    } else {
-        container.textContent = words.join(', ');
-    }
-}
-
-function populateShareImageDocument(doc, payload, includeWords) {
-    doc.body.classList.toggle('share-mode-full', includeWords);
-
-    const assignments = [
-        ['share-date', payload.dateLabel],
-        ['share-score', `${payload.score} pkt`],
-        ['share-guessed-count', String(payload.guessedCount)],
-        ['share-total-count', String(payload.totalCount)],
-        ['share-missed-count', String(payload.totalCount - payload.guessedCount)]
-    ];
-
-    assignments.forEach(([id, value]) => {
-        const element = doc.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
-    });
-
-    populateShareWordList(doc, 'share-guessed-words', payload.guessedWords, 'guessed');
-    populateShareWordList(doc, 'share-missed-words', payload.missedWords, 'missed');
-}
-
-function createShareImageFrame() {
-    return new Promise((resolve, reject) => {
-        const iframe = document.createElement('iframe');
-        iframe.src = SHARE_IMAGE_TEMPLATE_PATH;
-        iframe.setAttribute('aria-hidden', 'true');
-        iframe.tabIndex = -1;
-        iframe.style.position = 'fixed';
-        iframe.style.left = '-20000px';
-        iframe.style.top = '0';
-        iframe.style.width = `${SHARE_IMAGE_TEMPLATE_WIDTH}px`;
-        iframe.style.height = '4000px';
-        iframe.style.border = '0';
-        iframe.style.opacity = '0';
-        iframe.style.pointerEvents = 'none';
-        iframe.style.visibility = 'hidden';
-
-        const cleanup = () => {
-            iframe.removeEventListener('load', handleLoad);
-            iframe.removeEventListener('error', handleError);
-            if (iframe.parentNode) {
-                iframe.parentNode.removeChild(iframe);
-            }
-        };
-
-        const handleLoad = () => resolve({ iframe, cleanup });
-        const handleError = () => {
-            cleanup();
-            reject(new Error('Nie udało się wczytać szablonu share image.'));
-        };
-
-        iframe.addEventListener('load', handleLoad, { once: true });
-        iframe.addEventListener('error', handleError, { once: true });
-        document.body.appendChild(iframe);
-    });
-}
-
 async function generateGameOfDayShareImage(payload, options = {}) {
-    const includeWords = Boolean(options.includeWords);
-    const { iframe, cleanup } = await createShareImageFrame();
-
-    try {
-        const frameWindow = iframe.contentWindow;
-        const frameDoc = iframe.contentDocument;
-        if (!frameWindow || !frameDoc) {
-            throw new Error('Nie udało się otworzyć szablonu share image.');
-        }
-
-        populateShareImageDocument(frameDoc, payload, includeWords);
-        await waitForShareImageFrameReady(frameWindow);
-
-        const root = frameDoc.getElementById('share-image-root');
-        if (!root) {
-            throw new Error('Szablon share image nie zawiera #share-image-root.');
-        }
-
-        const width = Math.ceil(root.getBoundingClientRect().width || SHARE_IMAGE_TEMPLATE_WIDTH);
-        const height = Math.ceil(Math.max(root.getBoundingClientRect().height, root.scrollHeight));
-
-        if (typeof window.domtoimage !== 'undefined') {
-            return await window.domtoimage.toBlob(root, { width, height, bgcolor: '#ffffff' });
-        }
-
-        if (typeof window.html2canvas !== 'function') {
-            throw new Error('Brak biblioteki do generowania obrazka.');
-        }
-
-        const canvas = await window.html2canvas(root, {
-            backgroundColor: null,
-            width,
-            height,
-            scale: 1,
-            useCORS: false,
-            logging: false,
-            removeContainer: true,
-            foreignObjectRendering: false,
-            windowWidth: width,
-            windowHeight: height
-        });
-
-        return await canvasToBlob(canvas);
-    } finally {
-        cleanup();
-    }
+    return ShareImageGenerator.generate(payload, options);
 }
 
 async function preGenerateShareImages() {
@@ -857,9 +701,6 @@ async function handleGameOfDayShare(includeWords) {
 
         const hasShare = !!navigator.share;
         const canShareFiles = !navigator.canShare || navigator.canShare({ files: [imageFile] });
-        const debugInfo = `[blob:${blobWasPreGenerated?'pre':'live'} ${blob.size}B | share:${hasShare} | canShare:${canShareFiles}]`;
-        console.log('[Share]', debugInfo);
-        setGameOfDayShareStatus(debugInfo);
 
         if (hasShare && canShareFiles) {
             await navigator.share({
