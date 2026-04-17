@@ -1,109 +1,36 @@
-let useMockMode = location.search.includes('mock');
+﻿let useMockMode = location.search.includes('mock');
 let useKidsMode = location.search.includes('kids');
 const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
 
 // ------------------------------------------------------------------------
+// Controllers / views (instantiated after DOM is parsed via defer)
 
-const input = document.getElementById('input-text');
-const output = document.getElementById('output');
-const statusEl = document.getElementById('statusText');
+const loadingController = new LoadingController();
 
-function updateStatus(msg) {
-    if (statusEl) statusEl.textContent = msg;
-    const alt = document.getElementById('statusTextGame');
-    if (alt) alt.textContent = msg;
-    // also update loading screen status if visible
-    const loading = document.getElementById('loading-status');
-    if (loading) loading.textContent = msg;
-}
+const guessListView = new GuessListView();
 
-function hideLoadingScreen() {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) {
-        overlay.style.display = 'none';
-    }
-}
+const anagramChecker = new AnagramChecker({ getWordSet });
 
-function updateLoadingProgress(percent) {
-    const prog = document.getElementById('loading-progress');
-    const pageProgress = document.getElementById('progress');
-    if (prog) prog.value = percent;
-    if (pageProgress) pageProgress.value = percent;
-}
-
-let loadingStartTime = 0;
-let loadingTimerFrameId = null;
-
-function formatLoadingSeconds(ms) {
-    return `(${(ms / 1000).toFixed(1)}s)`;
-}
-
-function updateLoadingTimeDisplay(ms) {
-    const loadingTimeEl = document.getElementById('loading-time');
-    if (loadingTimeEl) {
-        loadingTimeEl.textContent = formatLoadingSeconds(ms);
-    }
-}
-
-function startLoadingTimer() {
-    loadingStartTime = performance.now();
-    updateLoadingTimeDisplay(0);
-
-    if (loadingTimerFrameId) {
-        cancelAnimationFrame(loadingTimerFrameId);
-    }
-
-    const tick = () => {
-        updateLoadingTimeDisplay(performance.now() - loadingStartTime);
-        loadingTimerFrameId = requestAnimationFrame(tick);
-    };
-
-    loadingTimerFrameId = requestAnimationFrame(tick);
-}
-
-function stopLoadingTimer() {
-    if (loadingTimerFrameId) {
-        cancelAnimationFrame(loadingTimerFrameId);
-        loadingTimerFrameId = null;
-    }
-
-    if (loadingStartTime > 0) {
-        const elapsedMs = performance.now() - loadingStartTime;
-        updateLoadingTimeDisplay(elapsedMs);
-        return elapsedMs;
-    }
-
-    return 0;
-}
-
-const navigationHandler = new NavigationHandler({
-    updateGameModeUI,
-    startGame,
-    renderLetterTiles,
-    getGameState: () => gameState,
-    getNormalGameStats: () => normalGameStats
-});
+// ------------------------------------------------------------------------
+// Word set loading
 
 async function loadWordSet() {
-    const progressCallback = ({percent, message}) => {
-        updateLoadingProgress(percent);
-        updateStatus(message);
+    const progressCallback = ({ percent, message }) => {
+        loadingController.updateProgress(percent);
+        loadingController.updateStatus(message);
     };
     if (useMockMode) {
         const sjp = new SlownikJezykaPolskiego();
         await sjp.load('data/mock', progressCallback);
         return sjp;
     }
-
     if (useKidsMode) {
-      // unhide kids title letters if in kids mode
-      const kidsLetters = document.querySelectorAll('.title-kids');
-      kidsLetters.forEach(el => el.classList.remove('hidden'));
-      const sjp = new SlownikJezykaPolskiego();
-      await sjp.load('data/sjp-popular', progressCallback);
-      return sjp;
+        const kidsLetters = document.querySelectorAll('.title-kids');
+        kidsLetters.forEach(el => el.classList.remove('hidden'));
+        const sjp = new SlownikJezykaPolskiego();
+        await sjp.load('data/sjp-popular', progressCallback);
+        return sjp;
     }
-
     const sjp = new SlownikJezykaPolskiego();
     await sjp.load('data/sjp-full', progressCallback);
     return sjp;
@@ -123,7 +50,6 @@ window.exportCurrentDerivedStatsFiles = async function exportCurrentDerivedStats
     if (typeof exportDerivedStatsFilesFromDictionary !== 'function') {
         throw new Error('exportDerivedStatsFilesFromDictionary is unavailable');
     }
-
     const result = exportDerivedStatsFilesFromDictionary(sjp, options);
     console.log('[StatsExport] Exported derived files', result);
     return result;
@@ -135,11 +61,9 @@ window.regexGroupStartStats = async function regexGroupStartStats(wordLength, re
     if (typeof SjpStatsGenerator !== 'function') {
         throw new Error('SjpStatsGenerator is unavailable');
     }
-
     const regex = regexOrPattern instanceof RegExp
         ? regexOrPattern
         : new RegExp(String(regexOrPattern || ''), String(flags || ''));
-
     const generator = new SjpStatsGenerator(sjp);
     const result = generator.generateRegexCapturingGroupStartStats(wordLength, regex);
     console.log('[RegexGroupStartStats]', {
@@ -152,176 +76,8 @@ window.regexGroupStartStats = async function regexGroupStartStats(wordLength, re
     return result;
 };
 
-let wordOfTheDayController = null;
-let statsViewController = null;
-
-async function initializeWordOfTheDay() {
-    const wordEl = document.getElementById('word-of-the-day-value');
-    const descriptionEl = document.getElementById('word-of-the-day-description');
-    if (!wordEl || !descriptionEl || typeof WordOfTheDay !== 'function') {
-        return;
-    }
-
-    if (!wordOfTheDayController) {
-        wordOfTheDayController = new WordOfTheDay({
-            filePath: 'data/wotd-most-points/definicje.txt',
-            wordElementId: 'word-of-the-day-value',
-            descriptionElementId: 'word-of-the-day-description'
-        });
-    }
-
-    try {
-        await wordOfTheDayController.loadAndRender();
-    } catch (err) {
-        console.error('Failed to load word of the day', err);
-    }
-}
-
-// preload word set immediately on page load so status updates are independent
-async function init() {
-    // prepare SPA navigation
-    navigationHandler.setup();
-    startLoadingTimer();
-    // Let browser paint first timer frame before heavy dictionary work.
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    
-    try {
-        updateStatus('Wczytywanie słownika...');
-        updateLoadingProgress(10);
-        
-        await Promise.all([
-            getWordSet(),
-            initializeWordOfTheDay()
-        ]);
-
-        if (!statsViewController && typeof StatsView === 'function') {
-            statsViewController = new StatsView({ getWordSet });
-            statsViewController.setup();
-        }
-        
-        updateLoadingProgress(100);
-        stopLoadingTimer();
-        
-        // Show completion message briefly before hiding
-        await new Promise(r => setTimeout(r, 300));
-        hideLoadingScreen();
-        // Initialize route AFTER hiding overlay
-        navigationHandler.handleHashChange();
-    } catch (err) {
-        console.error(err);
-        stopLoadingTimer();
-        updateStatus('Błąd przy wczytywaniu listy słów.');
-        await new Promise(r => setTimeout(r, 800));
-        hideLoadingScreen();
-        navigationHandler.handleHashChange();
-    }
-}
-
-// run initialization when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
-
-// Polish characters for wildcard expansion
-const POLISH_CHARS = ['a', 'ą', 'b', 'c', 'ć', 'd', 'e', 'ę', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'ł', 'm', 'n', 'ń', 'o', 'ó', 'p', 'r', 's', 'ś', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'ź', 'ż'];
-
-// return a set of sorted-letter keys after replacing ? with all polish chars
-function getWildcardKeys(str) {
-    const indices = [];
-    for (let i = 0; i < str.length; i++) {
-        if (str[i] === '?') indices.push(i);
-    }
-    const results = new Set();
-    const arr = str.split('');
-
-    function helper(pos) {
-        if (pos === indices.length) {
-            const key = arr.slice().sort().join('');
-            results.add(key);
-            return;
-        }
-        const idx = indices[pos];
-        for (const ch of POLISH_CHARS) {
-            arr[idx] = ch;
-            helper(pos + 1);
-        }
-        arr[idx] = '?';
-    }
-
-    if (indices.length === 0) {
-        // nothing to expand
-        results.add(str.split('').sort().join(''));
-    } else {
-        helper(0);
-    }
-    return results;
-}
-
-
-// Polish plural declension
-function pluralForm(count) {
-    if (count === 1) return 'słowo';
-    const mod10 = count % 10;
-    const mod100 = count % 100;
-    if ((mod100 >= 12 && mod100 <= 14) || mod10 === 0 || (mod10 >= 5 && mod10 <= 9)) {
-        return 'słów';
-    }
-    return 'słowa';
-}
-
-
-input.addEventListener('input', async () => {
-    const letters = input.value.trim().toLowerCase();
-
-    if (!letters) {
-        output.textContent = '';
-        return;
-    }
-
-    // validate maximum 2 wildcards
-    const wildcardCount = (letters.match(/\?/g) || []).length;
-    if (wildcardCount > 2) {
-        output.textContent = 'Dozwolone są nie więcej niż dwie blanki';
-        return;
-    }
-
-    try {
-        const sjp = await getWordSet();
-        let matchesSet;
-
-        if (wildcardCount === 0) {
-            // simple lookup by sorted letters
-            const key = letters.split('').sort().join('');
-            const arr = sjp.getAnagrams(key);
-            matchesSet = new Set(arr);
-        } else {
-            // expand blanks into all letter possibilities and lookup each key
-            const keys = getWildcardKeys(letters);
-            matchesSet = new Set();
-            for (const key of keys) {
-                const arr = sjp.getAnagrams(key);
-                if (arr && arr.length) {
-                    for (const w of arr) matchesSet.add(w);
-                }
-            }
-        }
-
-        if (matchesSet === null) return; // search aborted
-        if (matchesSet.size) {
-            const form = pluralForm(matchesSet.size);
-            output.textContent = `Używając wszystkie litery, można ułożyć ${matchesSet.size} ${form}.`;
-        } else {
-            output.textContent = 'Brak możliwych słów wykorzystujących wszystkie litery.';
-        }
-    } catch (err) {
-        console.error(err);
-        output.textContent = 'Wystąpił błąd podczas sprawdzania słów. (Coś się odjebało)';
-    }
-});
-
-// --- game logic ------------------------------------------------------------
+// ------------------------------------------------------------------------
+// Game state
 
 let gameState = {
     letters: '',
@@ -334,33 +90,57 @@ let gameState = {
     roundRevealed: false
 };
 
-let gameOfDayState = {
-    active: false,
-    score: 0,
-    secondsLeft: GAME_OF_DAY_DURATION_SECONDS,
-    timerId: null,
-    allSolutions: [],
-    currentRoundStartIdx: 0,
-    dateLabel: ''
-};
-
-let gameOfDayShareInProgress = false;
-let preGeneratedShareBlobs = { score: null, full: null };
-
 let normalGameScore = 0;
 let normalGameStats = {
     totalFound: 0,
     totalSolutions: 0
 };
 
-function shuffleArray(arr, rng) {
-    const randomInt = rng ? max => rng.int(max) : max => Math.floor(Math.random() * max);
-    for (let i = arr.length - 1; i > 0; i--) {
-        const j = randomInt(i + 1);
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-}
+// ------------------------------------------------------------------------
+// Game-of-day controller
+
+const gameOfDayController = new GameOfDayController({
+    getWordSet,
+    guessListView,
+    getGameState: () => gameState,
+    onStart: () => { gameState.count = 7; },
+    onFinish: () => startGame(),
+    updateGameModeUI,
+    updateScore,
+    newGame,
+    clearGuessList: () => guessListView.clear()
+});
+
+// Shorthand so callers can still use gameOfDayState.active etc.
+const gameOfDayState = gameOfDayController.state;
+
+// ------------------------------------------------------------------------
+// Tile drag controller
+
+const tileDragController = new TileDragController({
+    getLetters: () => gameState.letters,
+    setLetters: (s) => { gameState.letters = s; },
+    onSwap: () => {}
+});
+
+// ------------------------------------------------------------------------
+// Navigation
+
+const navigationHandler = new NavigationHandler({
+    updateGameModeUI,
+    startGame,
+    renderLetterTiles,
+    getGameState: () => gameState,
+    getNormalGameStats: () => normalGameStats
+});
+
+// ------------------------------------------------------------------------
+// Console dev-stats helper (accessible as window.devStats in browser console)
+
+window.devStats = new ConsoleStats({ getWordSet });
+
+// ------------------------------------------------------------------------
+// Helpers
 
 const availableTileLetters = (() => {
     const data = new LiterakiData();
@@ -373,22 +153,18 @@ const availableTileLetters = (() => {
 
 function hasOnlyAvailableTileLetters(word) {
     for (const ch of word) {
-        if (!availableTileLetters.has(ch.toLowerCase())) {
-            return false;
-        }
+        if (!availableTileLetters.has(ch.toLowerCase())) return false;
     }
     return true;
 }
 
-async function startGame() {
-    // ensure words are loaded first
-    try {
-        const sjp = await getWordSet();
-        const count = gameState.count || 7;
-        await newGame(sjp, count);
-    } catch (e) {
-        console.error('Cannot start game', e);
+function shuffleArray(arr, rng) {
+    const randomInt = rng ? max => rng.int(max) : max => Math.floor(Math.random() * max);
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
     }
+    return arr;
 }
 
 function formatTimer(seconds) {
@@ -397,6 +173,9 @@ function formatTimer(seconds) {
     const restSeconds = safeSeconds % 60;
     return `${pad2(minutes)}:${pad2(restSeconds)}`;
 }
+
+// ------------------------------------------------------------------------
+// UI helpers
 
 function updateGameModeUI() {
     const startedControls = document.getElementById('started-game-controls');
@@ -417,12 +196,14 @@ function updateGameModeUI() {
             ? formatTimer(gameOfDayState.secondsLeft)
             : '00:00';
     }
+
     if (pointsValue) {
         if (gameOfDayState.active) {
             pointsValue.textContent = String(gameOfDayState.score);
         } else {
             pointsValue.textContent = `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
-            if (normalGameStats.totalFound === normalGameStats.totalSolutions && normalGameStats.totalSolutions === 100 && useKidsMode) {
+            if (normalGameStats.totalFound === normalGameStats.totalSolutions &&
+                normalGameStats.totalSolutions === 100 && useKidsMode) {
                 document.getElementById('congratulations-overlay').classList.remove('hidden');
                 document.getElementById('congratulations-return').addEventListener('click', () => {
                     document.getElementById('congratulations-overlay').classList.add('hidden');
@@ -434,11 +215,7 @@ function updateGameModeUI() {
     if (gameOfDayBtn) {
         gameOfDayBtn.textContent = 'gra dnia';
         gameOfDayBtn.disabled = false;
-        if (gameOfDayState.active || !isOnGameSection) {
-            gameOfDayBtn.classList.add('hidden');
-        } else {
-            gameOfDayBtn.classList.remove('hidden');
-        }
+        gameOfDayBtn.classList.toggle('hidden', gameOfDayState.active || !isOnGameSection);
     }
 
     showRecentDiff(0);
@@ -447,114 +224,37 @@ function updateGameModeUI() {
 function showRecentDiff(delta) {
     const recentDiffEl = document.getElementById('recent-difference');
     if (!recentDiffEl) return;
-    
-    // W trybie normalnym nie wyświetlaj przyrostu
-    if (!gameOfDayState.active) {
+
+    if (!gameOfDayState.active || delta === 0) {
         recentDiffEl.textContent = '';
         recentDiffEl.classList.remove('green', 'red');
         return;
     }
-    
-    // W trybie gry dnia pokazuj przyrosty punktów
-    if (delta === 0) {
-        recentDiffEl.textContent = '';
-        recentDiffEl.classList.remove('green', 'red');
-        return;
-    }
+
     const prefix = delta > 0 ? '+' : '';
     recentDiffEl.textContent = `${prefix}${delta}`;
     recentDiffEl.classList.remove('green', 'red');
-    if (delta > 0) {
-        recentDiffEl.classList.add('green');
-    } else if (delta < 0) {
-        recentDiffEl.classList.add('red');
-    }
+    recentDiffEl.classList.add(delta > 0 ? 'green' : 'red');
 }
 
 function updateScore(delta) {
     if (gameOfDayState.active) {
         gameOfDayState.score += delta;
     }
-    // W trybie normalnym nie aktualizujemy punktów, tylko display
     const pointsValue = document.getElementById('points');
     if (pointsValue) {
-        if (gameOfDayState.active) {
-            pointsValue.textContent = String(gameOfDayState.score);
-        } else {
-            pointsValue.textContent = `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
-        }
+        pointsValue.textContent = gameOfDayState.active
+            ? String(gameOfDayState.score)
+            : `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
     }
     showRecentDiff(delta);
-}
-
-function addWordToGuessList(word, kind) {
-    const guessList = document.getElementById('guess-list');
-    if (!guessList) return;
-
-    // try to update existing entry from the current round instead of duplicating
-    const items = Array.from(guessList.children);
-    for (let i = items.length - 1; i >= 0; i--) {
-        const node = items[i];
-        if (node.classList && node.classList.contains('guess-separator')) break;
-        const link = node.querySelector ? node.querySelector('a') : null;
-        if (!link) continue;
-        if (link.textContent !== word) continue;
-
-        if (kind === 'correct') {
-            link.classList.remove('guess-missed');
-            link.classList.add('guess-correct');
-        } else if (kind === 'missed') {
-            if (!link.classList.contains('guess-correct')) {
-                link.classList.add('guess-missed');
-            }
-        }
-        return;
-    }
-
-    const div = document.createElement('div');
-    div.classList.add('guess-item');
-
-    const a = document.createElement('a');
-    a.textContent = word;
-    a.href = `https://sjp.pl/${encodeURIComponent(word)}`;
-    a.target = '_blank';
-    a.rel = 'noopener';
-
-    if (kind === 'correct') {
-        a.classList.add('guess-correct');
-    } else if (kind === 'missed') {
-        a.classList.add('guess-missed');
-    }
-
-    div.appendChild(a);
-    guessList.appendChild(div);
-}
-
-function addRoundSeparator() {
-    const guessList = document.getElementById('guess-list');
-    if (!guessList) return;
-    const separator = document.createElement('div');
-    separator.classList.add('guess-separator');
-    separator.textContent = '---';
-    guessList.appendChild(separator);
-}
-
-function clearGuessList() {
-    const guessList = document.getElementById('guess-list');
-    while (guessList && guessList.firstChild) {
-        guessList.removeChild(guessList.firstChild);
-    }
-    const correctSection = document.getElementById('correct-section');
-    if (correctSection) {
-        correctSection.classList.add('hidden');
-    }
 }
 
 function revealMissedWordsFromCurrentRound() {
     if (gameState.roundRevealed) return;
     const missedWords = gameState.solutions.filter(word => !gameState.found.has(word));
     missedWords.forEach(word => gameState.revealedAfterGiveUp.add(word));
-    missedWords.forEach(word => addWordToGuessList(word, 'missed'));
+    missedWords.forEach(word => guessListView.addWord(word, 'missed'));
     gameState.roundRevealed = true;
 }
 
@@ -562,293 +262,36 @@ function maybeApplySkipPenalty() {
     if (gameState.skipPenaltyApplied) return;
     const missedCount = Math.max(0, gameState.solutions.length - gameState.found.size);
     gameState.skipPenaltyApplied = true;
-    if (missedCount > 0) {
-        updateScore(-5 * missedCount);
-    }
+    if (missedCount > 0) updateScore(-5 * missedCount);
 }
 
-function stopGameOfDayTimer() {
-    if (gameOfDayState.timerId) {
-        clearInterval(gameOfDayState.timerId);
-        gameOfDayState.timerId = null;
-    }
+// ------------------------------------------------------------------------
+// Tile rendering (delegates to TileDragController)
+
+function renderLetterTiles() {
+    tileDragController.renderTiles();
 }
 
-function getTodayDateLabel(date = new Date()) {
-    return `${pad2(date.getDate())}-${pad2(date.getMonth() + 1)}-${date.getFullYear()}`;
-}
+// ------------------------------------------------------------------------
+// Game core
 
-function getUniqueWordsPreserveOrder(words) {
-    const seen = new Set();
-    const uniqueWords = [];
-
-    words.forEach(word => {
-        const normalized = word.trim().toLowerCase();
-        if (!normalized || seen.has(normalized)) {
-            return;
-        }
-        seen.add(normalized);
-        uniqueWords.push(word);
-    });
-
-    return uniqueWords;
-}
-
-function getGameOfDaySharePayload() {
-    const guessedWords = [];
-    const missedWords = [];
-
-    gameOfDayState.allSolutions.forEach(({ word, found }) => {
-        if (found) {
-            guessedWords.push(word);
-        } else {
-            missedWords.push(word);
-        }
-    });
-
-    return {
-        dateLabel: gameOfDayState.dateLabel || getTodayDateLabel(),
-        score: gameOfDayState.score,
-        allWords: gameOfDayState.allSolutions.map(e => e.word),
-        guessedWords,
-        missedWords,
-        guessedCount: guessedWords.length,
-        totalCount: gameOfDayState.allSolutions.length
-    };
-}
-
-function setGameOfDayShareStatus(message, tone = 'neutral') {
-    const statusEl = document.getElementById('game-of-day-share-status');
-    if (!statusEl) {
-        return;
-    }
-
-    statusEl.textContent = message;
-    statusEl.classList.remove('green', 'red');
-    if (tone === 'success') {
-        statusEl.classList.add('green');
-    } else if (tone === 'error') {
-        statusEl.classList.add('red');
-    }
-}
-
-function setGameOfDayShareButtonsDisabled(disabled) {
-    const buttonIds = ['game-of-day-share-score', 'game-of-day-share-full'];
-    buttonIds.forEach(id => {
-        const button = document.getElementById(id);
-        if (button) {
-            button.disabled = disabled;
-        }
-    });
-}
-
-async function generateGameOfDayShareImage(payload, options = {}) {
-    return ShareImageGenerator.generate(payload, options);
-}
-
-async function preGenerateShareImages() {
-    setGameOfDayShareButtonsDisabled(true);
-    setGameOfDayShareStatus('Przygotowuję obrazek...');
-    const payload = getGameOfDaySharePayload();
+async function startGame() {
     try {
-        preGeneratedShareBlobs.score = await generateGameOfDayShareImage(payload, { includeWords: false });
+        const sjp = await getWordSet();
+        const count = gameState.count || 7;
+        await newGame(sjp, count);
     } catch (e) {
-        console.warn('[Share] Pre-generation of score image failed', e);
+        console.error('Cannot start game', e);
     }
-    try {
-        preGeneratedShareBlobs.full = await generateGameOfDayShareImage(payload, { includeWords: true });
-    } catch (e) {
-        console.warn('[Share] Pre-generation of full image failed', e);
-    }
-    setGameOfDayShareStatus('');
-    setGameOfDayShareButtonsDisabled(false);
-}
-
-function downloadGeneratedBlob(blob, fileName) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-async function handleGameOfDayShare(includeWords) {
-    if (gameOfDayShareInProgress) {
-        return;
-    }
-
-    try {
-        gameOfDayShareInProgress = true;
-        setGameOfDayShareButtonsDisabled(true);
-
-        const payload = getGameOfDaySharePayload();
-        const preGenKey = includeWords ? 'full' : 'score';
-        let blob = preGeneratedShareBlobs[preGenKey];
-        const blobWasPreGenerated = !!blob;
-
-        if (!blob) {
-            setGameOfDayShareStatus('Przygotowuję obrazek...');
-            blob = await generateGameOfDayShareImage(payload, { includeWords });
-            preGeneratedShareBlobs[preGenKey] = blob;
-        }
-
-        const suffix = includeWords ? '-wynik-slowa' : '-wynik';
-        const fileName = `pomocnik-literakowy-${payload.dateLabel}${suffix}.png`;
-        const imageFile = new File([blob], fileName, { type: 'image/png' });
-
-        const hasShare = !!navigator.share;
-        const canShareFiles = !navigator.canShare || navigator.canShare({ files: [imageFile] });
-
-        if (hasShare && canShareFiles) {
-            await navigator.share({
-                title: `Pomocnik Literakowy ${payload.dateLabel}`,
-                text: includeWords
-                    ? `Gra dnia ${payload.dateLabel}: ${payload.score} pkt + lista słów`
-                    : `Gra dnia ${payload.dateLabel}: ${payload.score} pkt`,
-                files: [imageFile]
-            });
-            setGameOfDayShareStatus('Udostępniono obrazek.', 'success');
-            return;
-        }
-
-        downloadGeneratedBlob(blob, fileName);
-        setGameOfDayShareStatus('Na tym urządzeniu natywne udostępnianie obrazka nie jest dostępne. PNG zostało pobrane.', 'success');
-    } catch (error) {
-        if (error && error.name === 'AbortError') {
-            setGameOfDayShareStatus('Udostępnianie anulowane.');
-        } else {
-            console.error('Failed to share game-of-day result', error);
-            const name = error && error.name ? error.name : 'UnknownError';
-            const msg = error && error.message ? error.message : String(error);
-            setGameOfDayShareStatus(`Błąd [${name}]: ${msg}`, 'error');
-        }
-    } finally {
-        gameOfDayShareInProgress = false;
-        setGameOfDayShareButtonsDisabled(false);
-    }
-}
-
-function showGameOfDayResultOverlay() {
-    const overlay = document.getElementById('game-of-day-overlay');
-    const scoreEl = document.getElementById('game-of-day-score');
-    const wordListEl = document.getElementById('game-of-day-words-list');
-    
-    if (scoreEl) scoreEl.textContent = String(gameOfDayState.score);
-    
-    if (wordListEl) {
-        wordListEl.innerHTML = '';
-        gameOfDayState.allSolutions.forEach(({ word, found }, idx) => {
-            if (idx > 0) {
-                const comma = document.createTextNode(', ');
-                wordListEl.appendChild(comma);
-            }
-            const a = document.createElement('a');
-            a.textContent = word;
-            a.href = `https://sjp.pl/${encodeURIComponent(word)}`;
-            a.target = '_blank';
-            a.rel = 'noopener';
-            if (found) {
-                a.classList.add('guess-correct');
-            } else {
-                a.classList.add('guess-missed');
-            }
-            wordListEl.appendChild(a);
-        });
-    }
-    setGameOfDayShareStatus('');
-    if (overlay) overlay.classList.remove('hidden');
-}
-
-function hideGameOfDayResultOverlay() {
-    const overlay = document.getElementById('game-of-day-overlay');
-    if (overlay) overlay.classList.add('hidden');
-}
-
-function finishGameOfDay() {
-    if (!gameOfDayState.active) return;
-    stopGameOfDayTimer();
-    
-    // Aplikuj karę za nieodgadnięte słowa z aktualnej rundy
-    const missedCount = Math.max(0, gameState.solutions.length - gameState.found.size);
-    if (missedCount > 0) {
-        updateScore(-5 * missedCount);
-    }
-
-    gameOfDayState.active = false;
-    clearGuessList();
-    updateGameModeUI();
-
-    // Blokuj interfejs po zakończeniu czasu, żeby zapobiec przypadkowym kliknięciom
-    const uiLock = document.getElementById('ui-lock-overlay');
-    if (uiLock) uiLock.style.display = 'block';
-    showGameOfDayResultOverlay();
-    setTimeout(() => {
-        if (uiLock) uiLock.style.display = 'none';
-    }, 2000);
-
-    preGeneratedShareBlobs = { score: null, full: null };
-    preGenerateShareImages();
-}
-
-function startGameOfDayTimer() {
-    stopGameOfDayTimer();
-    const timerValue = document.getElementById('timer-value');
-    if (timerValue) timerValue.textContent = formatTimer(gameOfDayState.secondsLeft);
-    gameOfDayState.timerId = setInterval(() => {
-        gameOfDayState.secondsLeft -= 1;
-        if (timerValue) timerValue.textContent = formatTimer(gameOfDayState.secondsLeft);
-        if (gameOfDayState.secondsLeft <= 0) {
-            finishGameOfDay();
-        }
-    }, 1000);
-}
-
-async function startGameOfDay() {
-    preGeneratedShareBlobs = { score: null, full: null };
-    hideGameOfDayResultOverlay();
-    clearGuessList();
-    configureRandomMode('daily');
-    const gameOfDayDate = document.getElementById('game-of-day-date');
-    const dateLabel = getTodayDateLabel();
-    if (gameOfDayDate) {
-        gameOfDayDate.textContent = `(${dateLabel})`;
-    }
-    gameOfDayState.active = true;
-    gameOfDayState.dateLabel = dateLabel;
-    gameOfDayState.score = 0;
-    gameOfDayState.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
-    gameOfDayState.allSolutions = [];
-    gameOfDayState.currentRoundStartIdx = 0;
-    showRecentDiff(0);
-    updateGameModeUI();
-    gameState.count = 7;
-    const sjp = await getWordSet();
-    await newGame(sjp, 7);
-    startGameOfDayTimer();
-}
-
-async function returnToNormalMode() {
-    stopGameOfDayTimer();
-    gameOfDayState.active = false;
-    gameOfDayState.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
-    clearGuessList();
-    hideGameOfDayResultOverlay();
-    configureRandomMode('normal');
-    updateGameModeUI();
-    await startGame();
 }
 
 async function newGame(sjp, count) {
     gameState.count = count;
     gameState.roundNumber += 1;
-    const guessList = document.getElementById('guess-list');
-    if (guessList && guessList.children.length > 0) {
-        addRoundSeparator();
-    }
-    anagramCount = sjp.getSortedAnagramCountsByLength(count);
+
+    if (guessListView.hasEntries()) guessListView.addSeparator();
+
+    const anagramCount = sjp.getSortedAnagramCountsByLength(count);
     if (anagramCount === 0) {
         document.getElementById('letter-display').textContent = 'Brak słów o takiej długości';
         document.getElementById('solution-count').textContent = '0';
@@ -860,6 +303,7 @@ async function newGame(sjp, count) {
         gameState.roundRevealed = false;
         return;
     }
+
     let key = '';
     let solutionList = null;
     const maxAttempts = Math.max(50, anagramCount * 2);
@@ -908,206 +352,23 @@ async function newGame(sjp, count) {
     gameState.revealedAfterGiveUp.clear();
     gameState.skipPenaltyApplied = false;
     gameState.roundRevealed = false;
+
     if (gameOfDayState.active) {
         gameOfDayState.currentRoundStartIdx = gameOfDayState.allSolutions.length;
         gameState.solutions.forEach(w => gameOfDayState.allSolutions.push({ word: w, found: false }));
     } else {
-        // W trybie normalnym dodaj do całkowitej liczby możliwych słów
         normalGameStats.totalSolutions += solutions.length;
     }
+
     updateGameUI();
 }
 
-function renderLetterTiles() {
-    const display = document.getElementById('letter-display');
-    const literakiData = new LiterakiData();
-    
-    // Only full rerender if tile count changed or tiles were never created
-    const needsFullRerender = tileElements.length !== gameState.letters.length || tileElements.length === 0;
-    
-    if (needsFullRerender) {
-        // Clean up old tiles from DOM and cache
-        tileElements.forEach(tile => {
-            tile.removeEventListener('pointerdown', tilePointerDown);
-        });
-        
-        // Clear display container
-        while (display.firstChild) {
-            display.removeChild(display.firstChild);
-        }
-        tileElements = [];
-        
-        gameState.letters.split('').forEach((ch, idx) => {
-            const span = document.createElement('span');
-            span.className = 'letter-tile';
-            if (draggingIndex === idx) span.classList.add('dragging');
-            span.textContent = ch.toUpperCase();
-            const points = literakiData.getLetterPoint(ch);
-            switch (points) {
-                case 1: span.classList.add('yellow-letter'); break;
-                case 2: span.classList.add('green-letter'); break;
-                case 3: span.classList.add('blue-letter'); break;
-                case 5: span.classList.add('red-letter'); break;
-                default: break;
-            }
-            span.dataset.index = idx;
-            span.addEventListener('pointerdown', tilePointerDown);
-            display.appendChild(span);
-            tileElements.push(span);
-        });
-    } else {
-        // Efficient update: update content and styles of existing tiles
-        gameState.letters.split('').forEach((ch, idx) => {
-            if (tileElements[idx]) {
-                tileElements[idx].textContent = ch.toUpperCase();
-                const points = literakiData.getLetterPoint(ch);
-                // Reset color classes
-                tileElements[idx].classList.remove('yellow-letter', 'green-letter', 'blue-letter', 'red-letter');
-                switch (points) {
-                    case 1: tileElements[idx].classList.add('yellow-letter'); break;
-                    case 2: tileElements[idx].classList.add('green-letter'); break;
-                    case 3: tileElements[idx].classList.add('blue-letter'); break;
-                    case 5: tileElements[idx].classList.add('red-letter'); break;
-                }
-                tileElements[idx].classList.remove('dragging');
-                if (draggingIndex === idx) tileElements[idx].classList.add('dragging');
-            }
-        });
-    }
-}
-
-// global state for pointer dragging
-let draggingIndex = null;
-let floatingEl = null;
-let tileElements = []; // cache of tile elements for efficient updates during drag
-
-function getDocumentZoomFactor() {
-    const zoomValue = window.getComputedStyle(document.documentElement).zoom;
-    const parsed = Number.parseFloat(zoomValue);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
-
-// helper to swap letters in gameState and update display
-function swapLetters(i, j) {
-    const arr = gameState.letters.split('');
-    const [letter] = arr.splice(i, 1);
-    arr.splice(j, 0, letter);
-    gameState.letters = arr.join('');
-}
-
-function tilePointerDown(e) {
-    // Prevent selection during drag
-    document.body.style.userSelect = 'none';
-    e.preventDefault();
-    const idx = parseInt(this.dataset.index, 10);
-    draggingIndex = idx;
-
-    // create a floating clone WITHOUT deep cloning to avoid copying listeners
-    floatingEl = document.createElement('span');
-    floatingEl.className = 'letter-tile floating';
-    floatingEl.textContent = this.textContent;
-    // copy style classes for visual consistency
-    Array.from(this.classList).forEach(cls => {
-        if (cls !== 'letter-tile' && cls !== 'dragging') {
-            floatingEl.classList.add(cls);
-        }
-    });
-    document.body.appendChild(floatingEl);
-    moveFloating(e);
-
-    // Mark original tiles with dragging state via CSS class instead of recreating
-    tileElements.forEach((tile, i) => {
-        tile.classList.toggle('dragging', i === idx);
-    });
-
-    // listeners on window so they persist even if tile is re-rendered
-    window.addEventListener('pointermove', onPointerMove, { passive: false });
-    window.addEventListener('pointerup', onPointerUp, { passive: false });
-    window.addEventListener('pointercancel', onPointerUp, { passive: false });
-}
-
-function moveFloating(e) {
-    if (!floatingEl) return;
-    const zoom = getDocumentZoomFactor();
-    // position centered under pointer
-    const x = (e.pageX / zoom) - floatingEl.offsetWidth / 2;
-    const y = (e.pageY / zoom) - floatingEl.offsetHeight / 2;
-    floatingEl.style.left = x + 'px';
-    floatingEl.style.top = y + 'px';
-}
-
-function onPointerMove(e) {
-    moveFloating(e);
-    const elem = document.elementFromPoint(e.clientX, e.clientY);
-    if (elem && elem.classList.contains('letter-tile') && !elem.classList.contains('floating')) {
-        const dst = parseInt(elem.dataset.index, 10);
-        if (dst !== draggingIndex) {
-            swapLetters(draggingIndex, dst);
-            // Rebuild display from gameState to ensure sync
-            rebuildTilesFromGameState(dst);
-            draggingIndex = dst;
-        }
-    }
-}
-
-function rebuildTilesFromGameState(dragIdx) {
-    // Rebuild all tile displays from gameState.letters, keeping DOM nodes in place
-    if (tileElements.length !== gameState.letters.length) return; // shouldn't happen but safety check
-    
-    const literakiData = new LiterakiData();
-    gameState.letters.split('').forEach((ch, idx) => {
-        const tile = tileElements[idx];
-        if (!tile) return;
-        
-        // Update text and styling from gameState
-        tile.textContent = ch.toUpperCase();
-        tile.dataset.index = idx;
-        
-        // Reset color classes
-        tile.classList.remove('yellow-letter', 'green-letter', 'blue-letter', 'red-letter');
-        const points = literakiData.getLetterPoint(ch);
-        switch (points) {
-            case 1: tile.classList.add('yellow-letter'); break;
-            case 2: tile.classList.add('green-letter'); break;
-            case 3: tile.classList.add('blue-letter'); break;
-            case 5: tile.classList.add('red-letter'); break;
-        }
-        
-        // Update dragging state
-        tile.classList.toggle('dragging', idx === dragIdx);
-    });
-}
-
-function onPointerUp(e) {
-    // Restore selection
-    document.body.style.userSelect = '';
-    
-    // Remove listeners from window (use { passive: false } to match how they were added)
-    window.removeEventListener('pointermove', onPointerMove, { passive: false });
-    window.removeEventListener('pointerup', onPointerUp, { passive: false });
-    window.removeEventListener('pointercancel', onPointerUp, { passive: false });
-    
-    // Clean up floating element
-    if (floatingEl && floatingEl.parentNode) {
-        floatingEl.parentNode.removeChild(floatingEl);
-    }
-    floatingEl = null;
-    
-    // Remove dragging class from all tiles
-    tileElements.forEach(tile => tile.classList.remove('dragging'));
-    draggingIndex = null;
-}
-
-
 function updateGameUI() {
-    // original textual display replaced by interactive tiles (pointer drag)
     document.getElementById('solution-count').textContent = gameState.solutions.length;
     const guessList = document.getElementById('guess-list');
-    // Reset tile cache when starting new game
-    tileElements = [];
-    draggingIndex = null;
+    tileDragController.resetTiles();
     const correctSection = document.getElementById('correct-section');
-    if (gameState.found.size > 0 || guessList.children.length > 0) {
+    if (gameState.found.size > 0 || (guessList && guessList.children.length > 0)) {
         correctSection.classList.remove('hidden');
     } else {
         correctSection.classList.add('hidden');
@@ -1116,7 +377,6 @@ function updateGameUI() {
     if (guessInput) {
         guessInput.value = '';
         guessInput.style.backgroundColor = '';
-        // hide text input when using drag interface
         guessInput.style.display = 'none';
     }
     renderLetterTiles();
@@ -1140,18 +400,12 @@ async function handleGuess(guess) {
             if (roundEntry) roundEntry.found = true;
             updateScore(50);
         } else {
-            // W trybie normalnym dodaj do całkowitej liczby znalezionych
             normalGameStats.totalFound += 1;
             updateGameModeUI();
         }
-        addWordToGuessList(normalized, 'correct');
-        // keep the input text so player can continue editing
+        guessListView.addWord(normalized, 'correct');
         const correctSection = document.getElementById('correct-section');
-        if (gameState.found.size > 0) {
-            correctSection.classList.remove('hidden');
-        } else {
-            correctSection.classList.add('hidden');
-        }
+        if (correctSection) correctSection.classList.toggle('hidden', gameState.found.size === 0);
         confettiSeries();
         if (gameState.found.size === gameState.solutions.length) {
             const count = gameState.count || 7;
@@ -1167,87 +421,73 @@ async function handleGuess(guess) {
     }
 }
 
+// ------------------------------------------------------------------------
+// Confetti / animations
+
 function confettiSeries() {
-    const count = 2; // number of confetti bursts
+    const delayProfile = [200];
     let totalDelay = 0;
-    delayProfile = [200];
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < 2; i++) {
         setTimeout(fireConfetti, totalDelay);
-        let delay = delayProfile[i % delayProfile.length];
-        totalDelay += delay;
+        totalDelay += delayProfile[i % delayProfile.length];
     }
 }
 
-function fireConfetti(){
-    relativePosition = getRelativeCoordinatesOnScreen('check-button');
-    var defaults = {
+function fireConfetti() {
+    const relativePosition = getRelativeCoordinatesOnScreen('check-button');
+    const defaults = {
         spread: 55,
-        colors: ['#fff67e','#7eff9f','#8ac1ff','#ff9c88'],
+        colors: ['#fff67e', '#7eff9f', '#8ac1ff', '#ff9c88'],
         startVelocity: 30,
         particleCount: 100,
     };
-    confetti({
-        ...defaults,
-        angle: 45,
-        origin: { x: 0, y: relativePosition.y }
-    });
-    confetti({
-        ...defaults,
-        angle: 135,
-        origin: { x: 1, y: relativePosition.y }
-    });
+    confetti({ ...defaults, angle: 45, origin: { x: 0, y: relativePosition.y } });
+    confetti({ ...defaults, angle: 135, origin: { x: 1, y: relativePosition.y } });
 }
 
 function triggerShake(className) {
     const elements = document.getElementsByClassName(className);
     if (!elements || elements.length === 0) return;
     for (const el of elements) {
-        // Remove any existing animationend listeners by cloning the node
-        el.classList.remove("shake");
-        // trigger reflow to restart animation
+        el.classList.remove('shake');
         void el.offsetWidth;
-        el.classList.add("shake");
-
-        // Use a named function so we can properly remove it if needed
-        const removeShake = () => {
-            el.classList.remove("shake");
-        };
-        el.addEventListener("animationend", removeShake, { once: true });
+        el.classList.add('shake');
+        el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
     }
 }
 
 function getRelativeCoordinatesOnScreen(elementName) {
     const element = document.getElementById(elementName);
     const rect = element.getBoundingClientRect();
-    viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-    viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const x = rect.left/viewportWidth + (rect.width / 2) / viewportWidth;
-    const y = rect.top/viewportHeight + (rect.height / 2) / viewportHeight;
-    return { x, y };
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    return {
+        x: rect.left / viewportWidth + (rect.width / 2) / viewportWidth,
+        y: rect.top / viewportHeight + (rect.height / 2) / viewportHeight
+    };
 }
 
-// hook up game controls once DOM ready
+// ------------------------------------------------------------------------
+// Event binding
+
 let gameControlsSetup = false;
 function setupGameControls() {
     if (gameControlsSetup) return;
     gameControlsSetup = true;
-    
+
     updateGameModeUI();
+
     const guessInput = document.getElementById('guessInput');
     if (guessInput) {
-        // keep the existing listener around in case we ever re-enable the field
-        guessInput.addEventListener('input', () => {
-            handleGuess(guessInput.value);
-        });
-        // hide text input when pointer drag interface is available
+        guessInput.addEventListener('input', () => handleGuess(guessInput.value));
         guessInput.style.display = 'none';
     }
+
     const checkButton = document.getElementById('check-button');
     if (checkButton) {
-        checkButton.addEventListener('click', () => {
-            handleGuess(gameState.letters);
-        });
+        checkButton.addEventListener('click', () => handleGuess(gameState.letters));
     }
+
     const nextButton = document.getElementById('next-button');
     if (nextButton) {
         nextButton.addEventListener('click', async () => {
@@ -1262,10 +502,10 @@ function setupGameControls() {
             }
         });
     }
+
     const shuffleButton = document.getElementById('shuffle-button');
     if (shuffleButton) {
         shuffleButton.addEventListener('click', () => {
-            // reshuffle current letters order without clearing user's guess
             if (gameState.letters) {
                 gameState.letters = shuffleArray(gameState.letters.split(''), randomControl.mixRng).join('');
                 renderLetterTiles();
@@ -1277,7 +517,7 @@ function setupGameControls() {
     if (gameOfDayBtn) {
         gameOfDayBtn.addEventListener('click', async () => {
             try {
-                await startGameOfDay();
+                await gameOfDayController.start();
             } catch (e) {
                 console.error('Cannot start game of the day', e);
             }
@@ -1288,28 +528,28 @@ function setupGameControls() {
     if (stopGameBtn) {
         stopGameBtn.addEventListener('click', async () => {
             if (!gameOfDayState.active) return;
-            await returnToNormalMode();
+            await gameOfDayController.returnToNormal();
         });
     }
 
     const gameOfDayReturnBtn = document.getElementById('game-of-day-return');
     if (gameOfDayReturnBtn) {
         gameOfDayReturnBtn.addEventListener('click', async () => {
-            await returnToNormalMode();
+            await gameOfDayController.returnToNormal();
         });
     }
 
     const gameOfDayShareScoreBtn = document.getElementById('game-of-day-share-score');
     if (gameOfDayShareScoreBtn) {
         gameOfDayShareScoreBtn.addEventListener('click', async () => {
-            await handleGameOfDayShare(false);
+            await gameOfDayController.handleShare(false);
         });
     }
 
     const gameOfDayShareFullBtn = document.getElementById('game-of-day-share-full');
     if (gameOfDayShareFullBtn) {
         gameOfDayShareFullBtn.addEventListener('click', async () => {
-            await handleGameOfDayShare(true);
+            await gameOfDayController.handleShare(true);
         });
     }
 
@@ -1317,238 +557,94 @@ function setupGameControls() {
     const button7 = document.getElementById('button-7');
     const button8 = document.getElementById('button-8');
     const button9 = document.getElementById('button-9');
-    let countButtons = [button6, button7, button8, button9];
-    if (button6) {
-        button6.addEventListener('click', () => {
-            handleCountSelect(6, button6, countButtons);
-        });
-    }
-    if (button7) {
-        button7.addEventListener('click', () => {
-            handleCountSelect(7, button7, countButtons);
-        });
-    }
-    if (button8) {
-        button8.addEventListener('click', () => {
-            handleCountSelect(8, button8, countButtons);
-        });
-    }
-    if (button9) {
-        button9.addEventListener('click', () => {
-            handleCountSelect(9, button9, countButtons);
-        });
-    }
+    const countButtons = [button6, button7, button8, button9];
+
+    [[button6, 6], [button7, 7], [button8, 8], [button9, 9]].forEach(([btn, n]) => {
+        if (btn) btn.addEventListener('click', () => handleCountSelect(n, btn, countButtons));
+    });
 }
 
 function handleCountSelect(count, selectedButton, countButtons) {
-    countButtons.forEach(btn => btn.classList.remove('chosen'));
+    countButtons.forEach(btn => btn && btn.classList.remove('chosen'));
     selectedButton.classList.add('chosen');
     gameState.count = count;
     startGame();
 }
 
-// ensure game controls initialized during global init
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', setupGameControls);
 } else {
     setupGameControls();
 }
 
-// --- end game logic --------------------------------------------------------
+// ------------------------------------------------------------------------
+// Word of the day & stats
 
-// --- statistics functions for fun and profit -------------------------------
-async function getWordWithMostAnagrams() {
-    const sjp = await getWordSet();
-    let maxCount = 0;
-    let maxKey = null;
-    for (const [key, indices] of sjp.anagramMap.entries()) {
-        const count = indices.length;
-        if (count > maxCount) {
-            maxCount = count;
-            maxKey = key;
+let wordOfTheDayController = null;
+let statsViewController = null;
+
+async function initializeWordOfTheDay() {
+    const wordEl = document.getElementById('word-of-the-day-value');
+    const descriptionEl = document.getElementById('word-of-the-day-description');
+    if (!wordEl || !descriptionEl || typeof WordOfTheDay !== 'function') return;
+
+    if (!wordOfTheDayController) {
+        wordOfTheDayController = new WordOfTheDay({
+            filePath: 'data/wotd-most-points/definicje.txt',
+            wordElementId: 'word-of-the-day-value',
+            descriptionElementId: 'word-of-the-day-description'
+        });
+    }
+
+    try {
+        await wordOfTheDayController.loadAndRender();
+    } catch (err) {
+        console.error('Failed to load word of the day', err);
+    }
+}
+
+// ------------------------------------------------------------------------
+// App bootstrap
+
+async function init() {
+    navigationHandler.setup();
+    loadingController.startTimer();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    try {
+        loadingController.updateStatus('Wczytywanie słownika...');
+        loadingController.updateProgress(10);
+
+        await Promise.all([
+            getWordSet(),
+            initializeWordOfTheDay()
+        ]);
+
+        if (!statsViewController && typeof StatsView === 'function') {
+            statsViewController = new StatsView({ getWordSet });
+            statsViewController.setup();
         }
+
+        anagramChecker.setup();
+
+        loadingController.updateProgress(100);
+        loadingController.stopTimer();
+
+        await new Promise(r => setTimeout(r, 300));
+        loadingController.hideScreen();
+        navigationHandler.handleHashChange();
+    } catch (err) {
+        console.error(err);
+        loadingController.stopTimer();
+        loadingController.updateStatus('Błąd przy wczytywaniu listy słów.');
+        await new Promise(r => setTimeout(r, 800));
+        loadingController.hideScreen();
+        navigationHandler.handleHashChange();
     }
-    const maxIndices = maxKey ? sjp.anagramMap.get(maxKey) || [] : [];
-    const words = maxIndices.map(idx => sjp.wordsArray[idx]);
-    return { key: maxKey, count: maxCount, words };
 }
 
-async function getEveryWordWithEveryPointsLetter(letterCount) {
-    // gets a list of words that contain at least one letter for each point
-    // value (1,2,3,5) and returns the list sorted by total score, highest
-    // first
-    const sjp = await getWordSet();
-    const literakiData = new LiterakiData();
-    const matchingWords = [];
-    
-    for (const indices of sjp.anagramMap.values()) {
-        for (const idx of indices) {
-            const w = sjp.wordsArray[idx];
-            if (w.length !== letterCount) continue;
-            let wordScore = 0;
-            let onePointerPresent = false;
-            let twoPointerPresent = false;
-            let threePointerPresent = false;
-            let fivePointerPresent = false;
-            
-            for (const ch of w) {
-                const points = literakiData.getLetterPoint(ch);
-                switch (points) {
-                    case 1: onePointerPresent = true; break;
-                    case 2: twoPointerPresent = true; break;
-                    case 3: threePointerPresent = true; break;
-                    case 5: fivePointerPresent = true; break;
-                }
-                wordScore += points;
-            }
-            
-            const presentScore = 
-              (onePointerPresent ? 1 : 0) +
-              (twoPointerPresent ? 1 : 0) +
-              (threePointerPresent ? 1 : 0) +
-              (fivePointerPresent ? 1 : 0);
-              
-            if (presentScore === 4) {
-                matchingWords.push({ word: w, score: wordScore });
-            }
-        }
-    }
-    
-    // Sort by score, highest first
-    matchingWords.sort((a, b) => b.score - a.score);
-    
-    return matchingWords;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
 }
-
-async function exportTop365SevenLetterWords() {
-    const topWords = (await getEveryWordWithEveryPointsLetter(7)).slice(0, 365);
-    const header = 'rank,word,score';
-    const lines = topWords.map((entry, idx) => `${idx + 1},${entry.word},${entry.score}`);
-    const content = [header, ...lines].join('\n');
-
-    if (typeof saveToFile === 'function') {
-        saveToFile('top365_7liter_najwyzej_punktowane.csv', content);
-        return;
-    }
-
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'top365_7liter_najwyzej_punktowane.csv';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }, 100);
-}
-
-async function getEveryWordPoints(letterCount) {
-    const sjp = await getWordSet();
-    const literakiData = new LiterakiData();
-    const matchingWords = [];
-    
-    for (const indices of sjp.anagramMap.values()) {
-        for (const idx of indices) {
-            const w = sjp.wordsArray[idx];
-            if (w.length !== letterCount) continue;
-            let wordScore = 0;
-            
-            for (const ch of w) {
-                const points = literakiData.getLetterPoint(ch);
-                wordScore += points;
-            }
-            let usedCharsCountMap = {};
-            for (const ch of w) {
-              usedCharsCountMap[ch] = (usedCharsCountMap[ch] || 0) + 1;
-            }
-            for (const ch in usedCharsCountMap) {
-              const isEnough = 
-                usedCharsCountMap[ch] <= literakiData.getLetterCount(ch);
-              if (!isEnough) {
-                wordScore = -1;
-                break;
-              }
-            }
-            
-            if (wordScore !== -1) {
-                matchingWords.push({ word: w, score: wordScore });
-            }
-        }
-    }
-    
-    // Sort by score, highest first
-    matchingWords.sort((a, b) => b.score - a.score);
-    
-    return matchingWords;
-}
-
-async function getMostValuableWordOfLength(length) {
-    const sjp = await getWordSet();
-    const literakiData = new LiterakiData();
-    let maxScore = 0;
-    let bestWord = null;
-    for (const indices of sjp.anagramMap.values()) {
-        for (const idx of indices) {
-            const w = sjp.wordsArray[idx];
-            if (w.length !== length) continue;
-            let wordScore = 0;
-            for (const ch of w) {
-                wordScore += literakiData.getLetterPoint(ch);
-            }
-            if (wordScore > maxScore) {
-                maxScore = wordScore;
-                bestWord = w;
-            }
-        }
-    }
-    return { word: bestWord, score: maxScore };
-}
-
-async function getWordsListWithXVowels(vowelCount, wordLength) {
-    const sjp = await getWordSet();
-    const literakiData = new LiterakiData();
-    const matchingWords = [];
-    for (const indices of sjp.anagramMap.values()) {
-        for (const idx of indices) {
-            const w = sjp.wordsArray[idx];
-            if (w.length !== wordLength) continue;
-            let count = 0;
-            for (const ch of w) {
-                if (literakiData.isVowel.has(ch.toUpperCase())) {
-                    count++;
-                }
-            }
-            if (count == vowelCount) {
-                matchingWords.push(w);
-            }
-        }
-    }
-    return matchingWords;
-}
-
-// TODO:
-// - czyszczenie kodu:
-//  - usunięcie nieużywanych funkcji i zmiennych
-//  - lepsze organizowanie kodu w moduły (np. oddzielny moduł do obsługi słów i
-//    anagramów, oddzielny do logiki gry, oddzielny do UI)
-//
-// - optymalizacja:
-//  - optymalizacja wyświetlania, reużywanie elementów DOM zamiast ciągłego
-//    tworzenia nowych
-//
-// - customowa gra:
-//  - ustaw czas rozgrywki w minutach
-//  - liczba liter
-//  - przycisk "udostępnij link"
-//
-// - statystyki:
-//  - Liczba słów: chyba lepiej pokazać procent, typu 80% słów zaczyna się na
-//    “a”, zamiast, że jest ich 9382374.
-//  - Początki & końcówki: super byłoby widzieć dodatkowo też początki oraz
-//    końcówki 3 i 4 literowe
-//  - Najczęstsze litery top 10: chyba fajniej dać kolumnę z najczęstszą pozycją
-//    jako pierwsza a liczbę/procent na końcu, bo to drugorzędna informacja
-//  - Pole do wprowadzenie dowolnej literki i pokazanie statystyk tej litery
