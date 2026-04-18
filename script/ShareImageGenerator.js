@@ -35,6 +35,16 @@ class ShareImageGenerator {
         ctx.closePath();
     }
 
+    // Cross-platform helper: positions text so its visual top is at y,
+    // regardless of how the platform implements textBaseline='top'.
+    static #fillTextTop(ctx, text, x, y) {
+        const savedBaseline = ctx.textBaseline;
+        ctx.textBaseline = 'alphabetic';
+        const ascent = ctx.measureText(text).actualBoundingBoxAscent;
+        ctx.fillText(text, x, y + ascent);
+        ctx.textBaseline = savedBaseline;
+    }
+
     static #wrapToLines(ctx, text, maxWidth) {
         const segments = text.split(', ');
         const lines = [];
@@ -187,15 +197,15 @@ class ShareImageGenerator {
         ctx.fillStyle = '#000000';
 
         ctx.font = `500 32px ${FONT}`;
-        ctx.fillText('Twój wynik', INFO_X, iy);
+        ShareImageGenerator.#fillTextTop(ctx, 'Twój wynik', INFO_X, iy);
         iy += LABEL_H + LABEL_MB;
 
         ctx.font = `700 96px ${FONT}`;
-        ctx.fillText(`${payload.score} pkt`, INFO_X, iy);
+        ShareImageGenerator.#fillTextTop(ctx, `${payload.score} pkt`, INFO_X, iy);
         iy += SCORE_H + SCORE_MB;
 
         ctx.font = `500 32px ${FONT}`;
-        ctx.fillText(`Trafione: ${payload.guessedCount}/${payload.totalCount} słów`, INFO_X, iy);
+        ShareImageGenerator.#fillTextTop(ctx, `Trafione: ${payload.guessedCount}/${payload.totalCount} słów`, INFO_X, iy);
 
         y += CARD_H + CARD_MB;
 
@@ -208,31 +218,30 @@ class ShareImageGenerator {
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#000000';
             ctx.font = `500 ${HEADING_SIZE}px ${FONT}`;
-            ctx.fillText('Zgadnięte słowa:', LEFT_COL_X, y);
-            ctx.fillText('Nieodgadnięte słowa:', RIGHT_COL_X, y);
-
+        ShareImageGenerator.#fillTextTop(ctx, 'Zgadnięte słowa:', LEFT_COL_X, y);
+        ShareImageGenerator.#fillTextTop(ctx, 'Nieodgadnięte słowa:', RIGHT_COL_X, y);
             const wy = y + HEADING_LINE_H + HEADING_MB;
 
             if (!payload.guessedWords.length) {
                 ctx.font = `italic 400 ${WORD_SIZE}px ${FONT}`;
                 ctx.fillStyle = '#888888';
-                ctx.fillText('brak', LEFT_COL_X, wy);
+                ShareImageGenerator.#fillTextTop(ctx, 'brak', LEFT_COL_X, wy);
             } else {
                 ctx.font = `600 ${WORD_SIZE}px ${FONT}`;
                 ctx.fillStyle = '#1B8543';
                 ShareImageGenerator.#wrapToLines(ctx, payload.guessedWords.join(', '), LEFT_INNER_W)
-                    .forEach((line, i) => ctx.fillText(line, LEFT_COL_X, wy + i * WORD_LINE_H));
+                    .forEach((line, i) => ShareImageGenerator.#fillTextTop(ctx, line, LEFT_COL_X, wy + i * WORD_LINE_H));
             }
 
             if (!payload.missedWords.length) {
                 ctx.font = `italic 400 ${WORD_SIZE}px ${FONT}`;
                 ctx.fillStyle = '#888888';
-                ctx.fillText('brak', RIGHT_COL_X, wy);
+                ShareImageGenerator.#fillTextTop(ctx, 'brak', RIGHT_COL_X, wy);
             } else {
                 ctx.font = `600 ${WORD_SIZE}px ${FONT}`;
                 ctx.fillStyle = '#9C2B38';
                 ShareImageGenerator.#wrapToLines(ctx, payload.missedWords.join(', '), COL_W)
-                    .forEach((line, i) => ctx.fillText(line, RIGHT_COL_X, wy + i * WORD_LINE_H));
+                    .forEach((line, i) => ShareImageGenerator.#fillTextTop(ctx, line, RIGHT_COL_X, wy + i * WORD_LINE_H));
             }
         }
 
