@@ -355,7 +355,9 @@ async function newGame(sjp, count) {
 
     if (gameOfDayState.active) {
         gameOfDayState.currentRoundStartIdx = gameOfDayState.allSolutions.length;
-        gameState.solutions.forEach(w => gameOfDayState.allSolutions.push({ word: w, found: false }));
+        const roundIdx = gameOfDayState.roundCount ?? 0;
+        gameOfDayState.roundCount = roundIdx + 1;
+        gameState.solutions.forEach(w => gameOfDayState.allSolutions.push({ word: w, found: false, roundIdx }));
     } else {
         normalGameStats.totalSolutions += solutions.length;
     }

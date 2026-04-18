@@ -85,25 +85,80 @@ class ShareImageGenerator {
 
         const penguinImg = await ShareImageGenerator.#loadShareImage('pingwinDab.png');
 
-        const COL_W = CONTENT_W / 2;       // 406
-        const LEFT_INNER_W = COL_W - 24;   // 382
         const WORD_SIZE = 28;
-        const WORD_LINE_H = Math.round(WORD_SIZE * 1.45);
-        const HEADING_SIZE = 32;
-        const HEADING_LINE_H = Math.round(HEADING_SIZE * 1.3);
-        const HEADING_MB = 7;
+        const LINE_H = 46;          // stride per text line
+        const SEP = ', ';
+        const WORD_TOP_MARGIN = 16;
+
+        // Lays out tokens in a single comma-separated flow with greedy line-breaking.
+        // Returns an array of placed token descriptors.
+        function buildWordLayout(measureCtx) {
+            const wordGroups = payload.wordGroups;
+            if (!wordGroups || !wordGroups.length) return null;
+            const tokens = [];
+            wordGroups.forEach(group => {
+                group.forEach(({ word, found }) => tokens.push({ word, found }));
+            });
+            if (!tokens.length) return null;
+
+            measureCtx.font = `600 ${WORD_SIZE}px ${FONT}`;
+            const SEP_W = measureCtx.measureText(SEP).width;
+
+            const placed = [];
+            let lineIdx = 0;
+            let curX = CONTENT_X;
+            let isFirstOnLine = true;
+
+            for (let i = 0; i < tokens.length; i++) {
+                const tok = tokens[i];
+                const wordW = measureCtx.measureText(tok.word).width;
+                const advance = isFirstOnLine ? 0 : SEP_W;
+
+                // Wrap if this token does not fit on the current line.
+                if (!isFirstOnLine && curX + advance + wordW > CONTENT_X + CONTENT_W) {
+                    lineIdx++;
+                    curX = CONTENT_X;
+                    isFirstOnLine = true;
+                }
+
+                const drawSep = !isFirstOnLine;
+                const sepX = drawSep ? curX : null;
+                const wordX = curX + (isFirstOnLine ? 0 : advance);
+
+                placed.push({ word: tok.word, found: tok.found,
+                    lineIdx, wordX, wordW, drawSep, sepX });
+
+                curX = wordX + wordW;
+                isFirstOnLine = false;
+            }
+
+            return placed;
+        }
 
         let wordSectionH = 0;
+        let wordLayout = null;
         if (includeWords) {
             const tmpCtx = document.createElement('canvas').getContext('2d');
-            tmpCtx.font = `600 ${WORD_SIZE}px ${FONT}`;
-            const gText = payload.guessedWords.length ? payload.guessedWords.join(', ') : 'brak';
-            const mText = payload.missedWords.length ? payload.missedWords.join(', ') : 'brak';
-            const bodyLines = Math.max(
-                ShareImageGenerator.#wrapToLines(tmpCtx, gText, LEFT_INNER_W).length,
-                ShareImageGenerator.#wrapToLines(tmpCtx, mText, COL_W).length
-            );
-            wordSectionH = HEADING_LINE_H + HEADING_MB + bodyLines * WORD_LINE_H + 8;
+            wordLayout = buildWordLayout(tmpCtx);
+            if (wordLayout && wordLayout.length) {
+                const lineCount = wordLayout[wordLayout.length - 1].lineIdx + 1;
+                wordSectionH = WORD_TOP_MARGIN + lineCount * LINE_H + 12;
+
+                // Centre each line horizontally.
+                // Find the rightmost x+w per line, compute offset, shift all tokens.
+                const lineRight = new Map();
+                for (const tok of wordLayout) {
+                    const right = tok.wordX + tok.wordW;
+                    if (!lineRight.has(tok.lineIdx) || right > lineRight.get(tok.lineIdx))
+                        lineRight.set(tok.lineIdx, right);
+                }
+                for (const tok of wordLayout) {
+                    const lineW = lineRight.get(tok.lineIdx) - CONTENT_X;
+                    const offset = Math.round((CONTENT_W - lineW) / 2);
+                    tok.wordX += offset;
+                    if (tok.sepX !== null) tok.sepX += offset;
+                }
+            }
         }
 
         const TITLE_H = 65;
@@ -209,39 +264,22 @@ class ShareImageGenerator {
 
         y += CARD_H + CARD_MB;
 
-        // word sections
-        if (includeWords) {
-            const LEFT_COL_X = CONTENT_X;
-            const RIGHT_COL_X = CONTENT_X + COL_W;
+        // word list: single comma-separated flow, green = guessed, red = missed
+        if (includeWords && wordLayout && wordLayout.length) {
+            const wy = y + WORD_TOP_MARGIN;
 
             ctx.textAlign = 'left';
-            ctx.textBaseline = 'top';
-            ctx.fillStyle = '#000000';
-            ctx.font = `500 ${HEADING_SIZE}px ${FONT}`;
-        ShareImageGenerator.#fillTextTop(ctx, 'Zgadnięte słowa:', LEFT_COL_X, y);
-        ShareImageGenerator.#fillTextTop(ctx, 'Nieodgadnięte słowa:', RIGHT_COL_X, y);
-            const wy = y + HEADING_LINE_H + HEADING_MB;
-
-            if (!payload.guessedWords.length) {
-                ctx.font = `italic 400 ${WORD_SIZE}px ${FONT}`;
-                ctx.fillStyle = '#888888';
-                ShareImageGenerator.#fillTextTop(ctx, 'brak', LEFT_COL_X, wy);
-            } else {
-                ctx.font = `600 ${WORD_SIZE}px ${FONT}`;
-                ctx.fillStyle = '#1B8543';
-                ShareImageGenerator.#wrapToLines(ctx, payload.guessedWords.join(', '), LEFT_INNER_W)
-                    .forEach((line, i) => ShareImageGenerator.#fillTextTop(ctx, line, LEFT_COL_X, wy + i * WORD_LINE_H));
-            }
-
-            if (!payload.missedWords.length) {
-                ctx.font = `italic 400 ${WORD_SIZE}px ${FONT}`;
-                ctx.fillStyle = '#888888';
-                ShareImageGenerator.#fillTextTop(ctx, 'brak', RIGHT_COL_X, wy);
-            } else {
-                ctx.font = `600 ${WORD_SIZE}px ${FONT}`;
-                ctx.fillStyle = '#9C2B38';
-                ShareImageGenerator.#wrapToLines(ctx, payload.missedWords.join(', '), COL_W)
-                    .forEach((line, i) => ShareImageGenerator.#fillTextTop(ctx, line, RIGHT_COL_X, wy + i * WORD_LINE_H));
+            ctx.textBaseline = 'alphabetic';
+            ctx.font = `600 ${WORD_SIZE}px ${FONT}`;
+            const wordAscent = ctx.measureText('A').actualBoundingBoxAscent;
+            for (const tok of wordLayout) {
+                const lineBaseY = wy + tok.lineIdx * LINE_H + wordAscent;
+                if (tok.drawSep) {
+                    ctx.fillStyle = '#666666';
+                    ctx.fillText(SEP, tok.sepX, lineBaseY);
+                }
+                ctx.fillStyle = tok.found ? '#1B8543' : '#9C2B38';
+                ctx.fillText(tok.word, tok.wordX, lineBaseY);
             }
         }
 

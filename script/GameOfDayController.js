@@ -30,6 +30,7 @@ class GameOfDayController {
             timerId: null,
             allSolutions: [],
             currentRoundStartIdx: 0,
+            roundCount: 0,
             dateLabel: ''
         };
 
@@ -76,6 +77,7 @@ class GameOfDayController {
         this.state.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
         this.state.allSolutions = [];
         this.state.currentRoundStartIdx = 0;
+        this.state.roundCount = 0;
 
         this._onStart();
         this._updateGameModeUI();
@@ -129,12 +131,24 @@ class GameOfDayController {
             else missedWords.push(word);
         });
 
+        // Build wordGroups: array-of-arrays grouped by roundIdx, preserving order.
+        const groupMap = new Map();
+        this.state.allSolutions.forEach(({ word, found, roundIdx }) => {
+            const idx = roundIdx ?? 0;
+            if (!groupMap.has(idx)) groupMap.set(idx, []);
+            groupMap.get(idx).push({ word, found });
+        });
+        const wordGroups = Array.from(groupMap.keys())
+            .sort((a, b) => a - b)
+            .map(k => groupMap.get(k));
+
         return {
             dateLabel: this.state.dateLabel || this.getTodayDateLabel(),
             score: this.state.score,
             allWords: this.state.allSolutions.map(e => e.word),
             guessedWords,
             missedWords,
+            wordGroups,
             guessedCount: guessedWords.length,
             totalCount: this.state.allSolutions.length
         };
