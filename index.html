@@ -67,9 +67,11 @@
     <!-- sekcje ukrywane/pokazywane przez JS -->
 
     <section id="check-section" class="page-section" style="display:none;">
-        <input type="text" id="input-text" placeholder="Wprowadź litery...">
-        <div id="output" style="min-width: 17rem;"></div>
-        <small style="font-size: 0.6rem; display:block; margin-top:0.5rem;">Hint: Blank = "?".</small>
+        <input type="text" id="input-text" placeholder="Wprowadź litery..."
+            autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+        <small id="input-hint">Blank = "?"</small>
+        <div id="output"></div>
+        <div id="output-word-match"></div>
     </section>
 
     <section id="game-section" class="page-section" style="display:none;">

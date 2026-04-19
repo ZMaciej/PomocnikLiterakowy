@@ -12,6 +12,7 @@ class AnagramChecker {
     setup() {
         const input = document.getElementById('input-text');
         const output = document.getElementById('output');
+        const outputWordMatch = document.getElementById('output-word-match');
         if (!input || !output) return;
 
         input.addEventListener('input', async () => {
@@ -19,12 +20,14 @@ class AnagramChecker {
 
             if (!letters) {
                 output.textContent = '';
+                if (outputWordMatch) outputWordMatch.textContent = '';
                 return;
             }
 
             const wildcardCount = (letters.match(/\?/g) || []).length;
             if (wildcardCount > 2) {
-                output.textContent = 'Dozwolone są nie więcej niż dwie blanki';
+                output.textContent = '⚠';
+                if (outputWordMatch) outputWordMatch.textContent = 'maks. 2 blanki';
                 return;
             }
 
@@ -48,15 +51,24 @@ class AnagramChecker {
                 }
 
                 if (matchesSet === null) return;
-                if (matchesSet.size) {
-                    const form = this._pluralForm(matchesSet.size);
-                    output.textContent = `Używając wszystkie litery, można ułożyć ${matchesSet.size} ${form}.`;
-                } else {
-                    output.textContent = 'Brak możliwych słów wykorzystujących wszystkie litery.';
+                output.textContent = String(matchesSet.size);
+
+                if (outputWordMatch) {
+                    if (wildcardCount === 0 && matchesSet.has(letters)) {
+                        outputWordMatch.textContent = '✓ to słowo';
+                        outputWordMatch.style.color = '#2a9d2a';
+                    } else if (wildcardCount === 0) {
+                        outputWordMatch.textContent = matchesSet.size > 0 ? '✗ nie jest słowem' : '';
+                        outputWordMatch.style.color = '#c0392b';
+                    } else {
+                        outputWordMatch.textContent = '';
+                        outputWordMatch.style.color = '';
+                    }
                 }
             } catch (err) {
                 console.error(err);
-                output.textContent = 'Wystąpił błąd podczas sprawdzania słów. (Coś się odjebało)';
+                output.textContent = '!';
+                if (outputWordMatch) outputWordMatch.textContent = 'błąd';
             }
         });
     }
