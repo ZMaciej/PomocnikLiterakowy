@@ -6,6 +6,11 @@
     letter-spacing: 0.08em;
     padding: 0.25rem 0.5rem;
     text-transform: lowercase;
+    border: 1px solid #ccc;
+}
+#input-text:focus {
+    outline: none;
+    border-color: #888;
 }
 
 #input-hint {
