@@ -1,0 +1,33 @@
+#header-panel {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    align-content: center;
+    flex-direction: row;
+    gap: 1rem;
+    width: 100%;
+}
+
+#title {
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: bold;
+    margin: 1rem 0rem;
+    text-wrap: balance;
+}
+
+.title-kids {
+    display: flex;
+    justify-content: center;
+    gap: 0.1rem;
+    font-family: 'Modak';
+    font-weight: 100;
+}
+
+.title-kids.hidden {
+    display: none;
+}
+
+.kids-letter {
+    display: inline-block;
+}

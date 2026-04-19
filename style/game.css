@@ -1,0 +1,353 @@
+#game-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0rem;
+    margin-top: 1.2rem;
+}
+
+#game-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    align-content: center;
+    flex-direction: row;
+    gap: 1rem;
+    width: 100%;
+    margin-bottom: 1rem;
+    margin-top: 1rem;
+}
+
+#started-game-controls,
+#points-panel {
+    display: flex;
+    justify-content: end;
+    gap: 0.35rem;
+    width: 4rem;
+    font-size: 0.6rem;
+}
+
+#started-game-controls.hidden,
+#points-panel.hidden,
+#game-of-the-day-button.hidden,
+#game-of-day-overlay.hidden {
+    display: none;
+}
+
+#congratulations-overlay.hidden {
+    display: none;
+}
+
+#game-of-the-day-button {
+    display: flex;
+    flex-direction: column;
+    align-self: center;
+    align-content: center;
+    width: 4rem;
+    gap: 0.5rem;
+    padding: .1rem 0rem;
+    font-size: 0.6rem;
+}
+
+/* frame around correct answers */
+#correct-section {
+    border: 1px solid #000000;
+    margin-top: 0.5rem;
+    padding-left: 5rem;
+    padding-right: 5rem;
+    border-radius: 4px;
+    background: #f9f9f9;
+    width: 7.5rem;
+    margin-bottom: 1.5rem;
+}
+
+#correct-section.hidden {
+    display: none;
+}
+
+#letter-display {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    width: 100%;
+    padding-top: 1rem;
+    padding-bottom: 0rem;
+}
+
+/* interactive letter tiles (pointer drag) */
+.letter-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.3rem;
+    height: 2.3rem;
+    margin: 0.1rem;
+    border: 1px solid #333;
+    border-radius: 4px;
+    cursor: grab;
+    background: #fff;
+    transition: transform 0.1s, opacity 0.1s;
+    font-size: 1.2rem;
+    font-weight: normal;
+    box-sizing: border-box;
+    touch-action: none;
+}
+
+.letter-tile.yellow-letter {
+    background-color: var(--tile-yellow);
+    border: 1px solid var(--tile-yellow-border);
+}
+
+.letter-tile.green-letter {
+    background-color: var(--tile-green);
+    border: 1px solid var(--tile-green-border);
+}
+
+.letter-tile.blue-letter {
+    background-color: var(--tile-blue);
+    border: 1px solid var(--tile-blue-border);
+}
+
+.letter-tile.red-letter {
+    background-color: var(--tile-red);
+    border: 1px solid var(--tile-red-border);
+}
+
+.letter-tile.dragging {
+    opacity: 0 !important; /* hide original while dragging */
+    transition: none;
+    pointer-events: none;
+}
+
+/* floating clone that follows the pointer */
+.letter-tile.floating {
+    position: absolute;
+    z-index: 10000;
+    pointer-events: none;
+    transform: scale(1.8);
+}
+
+@keyframes shake-horizontal {
+    0%   { transform: translateX(0); }
+    20%  { transform: translateX(-8px); }
+    40%  { transform: translateX(8px); }
+    60%  { transform: translateX(-5px); }
+    80%  { transform: translateX(3px); }
+    100% { transform: translateX(0); }
+}
+
+.letter-tile.shake {
+    animation: shake-horizontal 350ms ease-in-out;
+}
+
+#mix {
+    display: flex;
+    flex-direction: column;
+}
+
+#next-button {
+    margin-right: 0;
+}
+
+#next {
+    display: flex;
+    flex-direction: column;
+}
+
+#check-button {
+    align-self: stretch;
+    width: 14rem;
+    margin-right: 0.4rem;
+}
+
+.controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+#game-top-controls {
+    width: min(100%, 17rem);
+    justify-content: space-between;
+}
+
+#letter-count-header {
+    font-size: 0.6rem;
+    color: #333333;
+    margin-right: 0.2rem;
+}
+
+#letter-count-buttons {
+    display: inline-block;
+}
+
+.letter-count-button.chosen {
+    color: var(--tile-green-border);
+    border: 1px solid var(--tile-green-border);
+    background: var(--tile-green);
+    border-radius: 5px;
+    padding: 0.4rem 0.7rem;
+}
+
+#possible-count {
+    color: #333333;
+    font-size: 0.6rem;
+    align-self: flex-start;
+    margin: 0rem;
+    margin-bottom: 0.5rem;
+    margin-top: 0.2rem;
+    margin-left: 0.4rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+#solution-count {
+    font-size: .8rem;
+    margin: 0rem 0.3rem;
+}
+
+#guess-list {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column-reverse;
+    padding-left: 0.4rem;
+    padding-bottom: 0.8rem;
+}
+
+.guess-item {
+    margin-bottom: 0.15rem;
+}
+
+.guess-correct {
+    color: #37aa3a;
+}
+
+.guess-missed {
+    color: #c5183e;
+}
+
+.guess-separator {
+    margin: 0rem;
+    font-size: 0.5rem;
+    color: #666666;
+}
+
+#stop-game {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin: 0rem;
+    padding: 0rem;
+    font-size: 0.5rem;
+}
+
+#timer-value {
+    width: 5ch;
+}
+
+/* congratulations modal */
+#congratulations-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 10001;
+}
+
+#congratulations-modal {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 1rem 1rem;
+    min-width: 280px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    margin: 1rem;
+    justify-content: center;
+    align-items: center;
+}
+
+/* game-of-day modal */
+#game-of-day-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 9999;
+}
+
+#game-of-day-modal {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 1rem 1rem;
+    min-width: 280px;
+    max-width: min(92vw, 28rem);
+    max-height: min(88vh, 42rem);
+    overflow-y: auto;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    margin: 1rem;
+}
+
+#game-of-day-modal h2 {
+    margin-top: 0;
+}
+
+#game-of-day-words-list {
+    display: inline;
+}
+
+#game-of-day-words-list a {
+    text-decoration: none;
+}
+
+#game-of-day-words-list a.guess-correct {
+    color: #37aa3a;
+}
+
+#game-of-day-words-list a.guess-missed {
+    color: #c5183e;
+}
+
+#game-of-day-share-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 0.45rem;
+    margin-top: 0.4rem;
+    margin-bottom: 0.2rem;
+}
+
+#game-of-day-share-actions button,
+#game-of-day-return {
+    min-height: 2.5rem;
+    padding: 0.45rem 0.8rem;
+}
+
+#game-of-day-share-status {
+    min-height: 1.2rem;
+    margin: 0 0 0.6rem;
+    font-size: 0.65rem;
+    color: #666666;
+}
+
+@media (min-width: 540px) {
+    #game-of-day-share-actions {
+        flex-direction: row;
+    }
+
+    #game-of-day-share-actions button {
+        flex: 1;
+    }
+}
