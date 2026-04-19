@@ -46,14 +46,6 @@ label { display: block; margin-bottom: 0.5rem; }
     color: #c5183e;
 }
 
-.material-symbols-outlined {
-    font-variation-settings:
-    'FILL' 0,
-    'wght' 400,
-    'GRAD' 0,
-    'opsz' 24;
-}
-
 .jersey-10-regular {
     font-family: "Jersey 10", sans-serif;
     font-weight: 400;
