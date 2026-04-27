@@ -2,6 +2,9 @@
 let useKidsMode = location.search.includes('kids');
 const GAME_OF_DAY_DURATION_SECONDS = 5 * 60; // 5 minutes
 
+// Active word filter for current round (set by GameModeController per-round)
+let _activeWordFilter = null;
+
 // ------------------------------------------------------------------------
 // Controllers / views (instantiated after DOM is parsed via defer)
 
@@ -97,22 +100,56 @@ let normalGameStats = {
 };
 
 // ------------------------------------------------------------------------
-// Game-of-day controller
+// Game-of-day controller (still used internally by GameModeController)
 
 const gameOfDayController = new GameOfDayController({
     getWordSet,
     guessListView,
     getGameState: () => gameState,
     onStart: () => { gameState.count = 7; },
-    onFinish: () => startGame(),
+    onFinish: () => {
+        if (gameModeController.currentMode.id === 'fastDaily') {
+            gameModeController.onFastDailyFinished();
+        }
+    },
     updateGameModeUI,
-    updateScore,
+    updateScore: (delta) => {
+        // delta already applied by GameModeController; just refresh UI
+        updateGameModeUI();
+        showRecentDiff(delta);
+    },
     newGame,
     clearGuessList: () => guessListView.clear()
 });
 
 // Shorthand so callers can still use gameOfDayState.active etc.
 const gameOfDayState = gameOfDayController.state;
+
+// ------------------------------------------------------------------------
+// Game mode controller
+
+const _gameModes = [
+    new Classic7Mode(),
+    new FastDailyMode(),
+    new SlowDailyMode(),
+    new RedTrainingMode()
+];
+
+const gameModeController = new GameModeController({
+    modes: _gameModes,
+    getWordSet,
+    guessListView,
+    getGameState: () => gameState,
+    updateGameModeUI,
+    onModeScoreChange: (delta) => showRecentDiff(delta),
+    newGame: (sjp, count, wordFilter) => {
+        _activeWordFilter = wordFilter || null;
+        return newGame(sjp, count);
+    },
+    clearGuessList: () => guessListView.clear(),
+    onRoundStart: () => {},
+    gameOfDayController
+});
 
 // ------------------------------------------------------------------------
 // Tile drag controller
@@ -179,31 +216,42 @@ function formatTimer(seconds) {
 
 function updateGameModeUI() {
     const startedControls = document.getElementById('started-game-controls');
+    const timerSpacer = document.getElementById('timer-spacer');
     const pointsPanel = document.getElementById('points-panel');
     const gameOfDayBtn = document.getElementById('game-of-the-day-button');
     const gameSection = document.getElementById('game-section');
     const isOnGameSection = gameSection ? gameSection.style.display !== 'none' : false;
     const timerValue = document.getElementById('timer-value');
     const pointsValue = document.getElementById('points');
-    const countButtons = document.querySelectorAll('#letter-count-buttons button');
+    const twelveRemaining = document.getElementById('twelve-remaining');
 
-    if (startedControls) startedControls.classList.toggle('hidden', !gameOfDayState.active || !isOnGameSection);
+    const mode = gameModeController ? gameModeController.currentMode : null;
+    const modeActive = gameModeController ? gameModeController.active : false;
+    const hasTimer = mode && mode.hasTimer;
+
+    const showTimedControls = Boolean(hasTimer && isOnGameSection);
+    if (startedControls) startedControls.classList.toggle('hidden', !showTimedControls);
+    if (timerSpacer) timerSpacer.classList.toggle('hidden', showTimedControls || !isOnGameSection);
     if (pointsPanel) pointsPanel.classList.toggle('hidden', !isOnGameSection);
-    countButtons.forEach(btn => btn.disabled = gameOfDayState.active);
 
     if (timerValue) {
-        timerValue.textContent = gameOfDayState.active
-            ? formatTimer(gameOfDayState.secondsLeft)
+        timerValue.textContent = (gameModeController && hasTimer)
+            ? gameModeController.getTimerLabel()
             : '00:00';
     }
 
     if (pointsValue) {
-        if (gameOfDayState.active) {
-            pointsValue.textContent = String(gameOfDayState.score);
-        } else {
-            pointsValue.textContent = `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
-            if (normalGameStats.totalFound === normalGameStats.totalSolutions &&
-                normalGameStats.totalSolutions === 100 && useKidsMode) {
+        const label = gameModeController
+            ? gameModeController.getPointsLabel()
+            : `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
+        pointsValue.textContent = label;
+
+        if (!modeActive) {
+            const modeId = mode ? mode.id : '';
+            const modeState = gameModeController ? gameModeController.currentState : null;
+            if (useKidsMode && modeId === 'classic7' && modeState &&
+                modeState.totalFound === modeState.totalSolutions &&
+                modeState.totalSolutions === 100) {
                 document.getElementById('congratulations-overlay').classList.remove('hidden');
                 document.getElementById('congratulations-return').addEventListener('click', () => {
                     document.getElementById('congratulations-overlay').classList.add('hidden');
@@ -212,20 +260,40 @@ function updateGameModeUI() {
         }
     }
 
-    if (gameOfDayBtn) {
-        gameOfDayBtn.textContent = 'gra dnia';
-        gameOfDayBtn.disabled = false;
-        gameOfDayBtn.classList.toggle('hidden', gameOfDayState.active || !isOnGameSection);
+    if (twelveRemaining) {
+        if (mode && mode.id === 'slowDaily') {
+            const modeState = gameModeController ? gameModeController.currentState : null;
+            const remaining = modeState
+                ? (modeActive
+                    ? Math.max(0, mode.totalRounds - modeState.roundCount + 1)
+                    : 0)
+                : 0;
+            twelveRemaining.textContent = `Pozostało: ${remaining}`;
+            twelveRemaining.classList.remove('hidden');
+        } else {
+            twelveRemaining.textContent = '';
+            twelveRemaining.classList.add('hidden');
+        }
     }
 
-    showRecentDiff(0);
+    // Legacy button (hidden now — start moved to mode selector)
+    if (gameOfDayBtn) gameOfDayBtn.classList.add('hidden');
+
+    // Highlight active mode button
+    if (mode) {
+        document.querySelectorAll('.mode-select-btn').forEach(btn => {
+            btn.classList.toggle('chosen', btn.dataset.mode === mode.id);
+        });
+    }
+
 }
 
 function showRecentDiff(delta) {
     const recentDiffEl = document.getElementById('recent-difference');
     if (!recentDiffEl) return;
 
-    if (!gameOfDayState.active || delta === 0) {
+    const modeActive = gameModeController ? gameModeController.active : false;
+    if (!modeActive || delta === 0) {
         recentDiffEl.textContent = '';
         recentDiffEl.classList.remove('green', 'red');
         return;
@@ -238,14 +306,11 @@ function showRecentDiff(delta) {
 }
 
 function updateScore(delta) {
-    if (gameOfDayState.active) {
-        gameOfDayState.score += delta;
-    }
+    // Score mutations are now handled by the active GameMode object.
+    // This function is kept for backward compat (GameOfDayController calls it).
     const pointsValue = document.getElementById('points');
-    if (pointsValue) {
-        pointsValue.textContent = gameOfDayState.active
-            ? String(gameOfDayState.score)
-            : `${normalGameStats.totalFound}/${normalGameStats.totalSolutions}`;
+    if (pointsValue && gameModeController) {
+        pointsValue.textContent = gameModeController.getPointsLabel();
     }
     showRecentDiff(delta);
 }
@@ -260,9 +325,8 @@ function revealMissedWordsFromCurrentRound() {
 
 function maybeApplySkipPenalty() {
     if (gameState.skipPenaltyApplied) return;
-    const missedCount = Math.max(0, gameState.solutions.length - gameState.found.size);
     gameState.skipPenaltyApplied = true;
-    if (missedCount > 0) updateScore(-5 * missedCount);
+    gameModeController.onSkip();
 }
 
 // ------------------------------------------------------------------------
@@ -277,6 +341,10 @@ function renderLetterTiles() {
 
 async function startGame() {
     try {
+        if (gameModeController && !gameModeController.active) {
+            await gameModeController.switchTo(gameModeController.currentMode.id);
+            return;
+        }
         const sjp = await getWordSet();
         const count = gameState.count || 7;
         await newGame(sjp, count);
@@ -291,6 +359,7 @@ async function newGame(sjp, count) {
 
     if (guessListView.hasEntries()) guessListView.addSeparator();
 
+    const wordFilter = _activeWordFilter;
     const anagramCount = sjp.getSortedAnagramCountsByLength(count);
     if (anagramCount === 0) {
         document.getElementById('letter-display').textContent = 'Brak słów o takiej długości';
@@ -314,6 +383,7 @@ async function newGame(sjp, count) {
         if (!candidateList || candidateList.length === 0) continue;
         const candidateKey = candidateList[0];
         if (!hasOnlyAvailableTileLetters(candidateKey)) continue;
+        if (wordFilter && !wordFilter(candidateKey)) continue;
         key = candidateKey;
         solutionList = candidateList;
         break;
@@ -326,6 +396,7 @@ async function newGame(sjp, count) {
             if (!candidateList || candidateList.length === 0) continue;
             const candidateKey = candidateList[0];
             if (!hasOnlyAvailableTileLetters(candidateKey)) continue;
+            if (wordFilter && !wordFilter(candidateKey)) continue;
             key = candidateKey;
             solutionList = candidateList;
             break;
@@ -353,12 +424,16 @@ async function newGame(sjp, count) {
     gameState.skipPenaltyApplied = false;
     gameState.roundRevealed = false;
 
-    if (gameOfDayState.active) {
+    const mode = gameModeController ? gameModeController.currentMode : null;
+    if (mode && mode.id === 'fastDaily' && gameOfDayState.active) {
         gameOfDayState.currentRoundStartIdx = gameOfDayState.allSolutions.length;
         const roundIdx = gameOfDayState.roundCount ?? 0;
         gameOfDayState.roundCount = roundIdx + 1;
         gameState.solutions.forEach(w => gameOfDayState.allSolutions.push({ word: w, found: false, roundIdx }));
-    } else {
+    } else if (mode && (mode.id === 'classic7' || mode.id === 'redTraining')) {
+        const modeState = gameModeController.currentState;
+        modeState.totalSolutions += solutions.length;
+    } else if (!mode) {
         normalGameStats.totalSolutions += solutions.length;
     }
 
@@ -393,32 +468,27 @@ async function handleGuess(guess) {
     }
     if (gameState.solutions.includes(normalized) && !gameState.found.has(normalized)) {
         gameState.found.add(normalized);
-        if (gameOfDayState.active) {
-            const roundEntry = gameOfDayState.allSolutions.find(
-                (entry, i) => i >= gameOfDayState.currentRoundStartIdx
-                    && entry.word.toLowerCase() === normalized
-                    && !entry.found
-            );
-            if (roundEntry) roundEntry.found = true;
-            updateScore(50);
-        } else {
-            normalGameStats.totalFound += 1;
-            updateGameModeUI();
-        }
+        gameModeController.onGuessCorrect(normalized);
         guessListView.addWord(normalized, 'correct');
         const correctSection = document.getElementById('correct-section');
         if (correctSection) correctSection.classList.toggle('hidden', gameState.found.size === 0);
         confettiSeries();
         if (gameState.found.size === gameState.solutions.length) {
-            const count = gameState.count || 7;
             try {
-                const sjp = await getWordSet();
-                await newGame(sjp, count);
+                const mode = gameModeController.currentMode;
+                if (mode.id === 'fastDaily') {
+                    const sjp = await getWordSet();
+                    _activeWordFilter = null;
+                    await newGame(sjp, 7);
+                } else {
+                    await gameModeController.onRoundComplete();
+                }
             } catch (e) {
                 console.error('Cannot generate next game', e);
             }
         }
     } else {
+        gameModeController.onGuessWrong();
         triggerShake('letter-tile');
     }
 }
@@ -495,10 +565,16 @@ function setupGameControls() {
         nextButton.addEventListener('click', async () => {
             maybeApplySkipPenalty();
             revealMissedWordsFromCurrentRound();
-            const count = gameState.count || 7;
             try {
-                const sjp = await getWordSet();
-                await newGame(sjp, count);
+                const mode = gameModeController.currentMode;
+                if (mode.id === 'fastDaily') {
+                    // daily uses standard 7-letter next round
+                    const sjp = await getWordSet();
+                    _activeWordFilter = null;
+                    await newGame(sjp, 7);
+                } else {
+                    await gameModeController.onNextRound();
+                }
             } catch (e) {
                 console.error('Cannot generate next game', e);
             }
@@ -515,22 +591,17 @@ function setupGameControls() {
         });
     }
 
-    const gameOfDayBtn = document.getElementById('game-of-the-day-button');
-    if (gameOfDayBtn) {
-        gameOfDayBtn.addEventListener('click', async () => {
-            try {
-                await gameOfDayController.start();
-            } catch (e) {
-                console.error('Cannot start game of the day', e);
-            }
-        });
-    }
-
     const stopGameBtn = document.getElementById('stop-game');
     if (stopGameBtn) {
         stopGameBtn.addEventListener('click', async () => {
-            if (!gameOfDayState.active) return;
-            await gameOfDayController.returnToNormal();
+            const mode = gameModeController.currentMode;
+            if (mode.id === 'fastDaily') {
+                await gameOfDayController.returnToNormal();
+                await gameModeController.switchTo('classic7');
+            } else {
+                gameModeController.stop();
+                await gameModeController.switchTo('classic7');
+            }
         });
     }
 
@@ -538,6 +609,7 @@ function setupGameControls() {
     if (gameOfDayReturnBtn) {
         gameOfDayReturnBtn.addEventListener('click', async () => {
             await gameOfDayController.returnToNormal();
+            await gameModeController.switchTo('classic7');
         });
     }
 
@@ -555,22 +627,18 @@ function setupGameControls() {
         });
     }
 
-    const button6 = document.getElementById('button-6');
-    const button7 = document.getElementById('button-7');
-    const button8 = document.getElementById('button-8');
-    const button9 = document.getElementById('button-9');
-    const countButtons = [button6, button7, button8, button9];
-
-    [[button6, 6], [button7, 7], [button8, 8], [button9, 9]].forEach(([btn, n]) => {
-        if (btn) btn.addEventListener('click', () => handleCountSelect(n, btn, countButtons));
+    // Mode selector buttons
+    document.querySelectorAll('.mode-select-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const modeId = btn.dataset.mode;
+            if (!modeId) return;
+            try {
+                await gameModeController.switchTo(modeId);
+            } catch (e) {
+                console.error('Cannot switch game mode', e);
+            }
+        });
     });
-}
-
-function handleCountSelect(count, selectedButton, countButtons) {
-    countButtons.forEach(btn => btn && btn.classList.remove('chosen'));
-    selectedButton.classList.add('chosen');
-    gameState.count = count;
-    startGame();
 }
 
 if (document.readyState === 'loading') {

@@ -31,7 +31,8 @@ class GameOfDayController {
             allSolutions: [],
             currentRoundStartIdx: 0,
             roundCount: 0,
-            dateLabel: ''
+            dateLabel: '',
+            modeEmoji: '⚡'
         };
 
         this._shareInProgress = false;
@@ -66,13 +67,14 @@ class GameOfDayController {
         this._preGeneratedBlobs = { score: null, full: null };
         this._hideResultOverlay();
         this._clearGuessList();
-        configureRandomMode('daily');
+        configureRandomMode('fastDaily');
         const dateLabel = this.getTodayDateLabel();
         const gameOfDayDate = document.getElementById('game-of-day-date');
         if (gameOfDayDate) gameOfDayDate.textContent = `(${dateLabel})`;
 
         this.state.active = true;
         this.state.dateLabel = dateLabel;
+        this.state.modeEmoji = '⚡';
         this.state.score = 0;
         this.state.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
         this.state.allSolutions = [];
@@ -105,7 +107,9 @@ class GameOfDayController {
         const gameState = this._getGameState();
         const missedCount = Math.max(0, gameState.solutions.length - gameState.found.size);
         if (missedCount > 0) {
-            this._updateScore(-5 * missedCount);
+            const penalty = 5 * missedCount;
+            this.state.score -= penalty;
+            this._updateScore(-penalty);
         }
 
         this.state.active = false;
@@ -144,6 +148,7 @@ class GameOfDayController {
 
         return {
             dateLabel: this.state.dateLabel || this.getTodayDateLabel(),
+            modeLabel: `"Gra Dnia" ${this.state.modeEmoji || ''}`.trim(),
             score: this.state.score,
             allWords: this.state.allSolutions.map(e => e.word),
             guessedWords,

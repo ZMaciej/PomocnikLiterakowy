@@ -27,6 +27,15 @@
     font-size: 0.6rem;
 }
 
+#timer-spacer {
+    width: 4rem;
+    min-height: 1px;
+}
+
+#timer-spacer.hidden {
+    display: none;
+}
+
 #started-game-controls.hidden,
 #points-panel.hidden,
 #game-of-the-day-button.hidden,
@@ -178,22 +187,27 @@
     justify-content: space-between;
 }
 
-#letter-count-header {
-    font-size: 0.6rem;
-    color: #333333;
-    margin-right: 0.2rem;
+#mode-select-buttons {
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
 }
 
-#letter-count-buttons {
-    display: inline-block;
+.mode-select-btn {
+    font-size: 0.85rem;
+    padding: 0.3rem 0.55rem;
+    width: 2.5rem;
+    border: 1px solid #aaaaaa;
+    border-radius: 5px;
+    background: #ffffff;
+    cursor: pointer;
+    line-height: 1.2;
 }
 
-.letter-count-button.chosen {
+.mode-select-btn.chosen {
     color: var(--tile-green-border);
     border: 1px solid var(--tile-green-border);
     background: var(--tile-green);
-    border-radius: 5px;
-    padding: 0.4rem 0.7rem;
 }
 
 #possible-count {

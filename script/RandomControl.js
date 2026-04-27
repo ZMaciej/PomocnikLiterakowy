@@ -49,15 +49,31 @@ function getSessionSeedString() {
 const randomControl = {
     mode: 'normal',
     normalSeedBase: getSessionSeedString(),
-    dailySeedBase: getTodaySeedString(),
+    fastDailySeedBase: getTodaySeedString(),
+    slowDailySeedBase: getTodaySeedString(),
     wordRng: null,
     mixRng: null
 };
 
+function refreshNormalRandomSeed() {
+    randomControl.normalSeedBase = getSessionSeedString();
+}
+
 function configureRandomMode(mode) {
-    const isDaily = mode === 'daily';
-    const baseSeed = isDaily ? randomControl.dailySeedBase : randomControl.normalSeedBase;
-    randomControl.mode = isDaily ? 'daily' : 'normal';
+    const isFastDaily = mode === 'fastDaily';
+    const isSlowDaily = mode === 'slowDaily';
+    const baseSeed = isFastDaily
+        ? `${randomControl.fastDailySeedBase}:fast-daily`
+        : isSlowDaily
+            ? `${randomControl.slowDailySeedBase}:slow-daily`
+            : randomControl.normalSeedBase;
+
+    randomControl.mode = isFastDaily
+        ? 'fastDaily'
+        : isSlowDaily
+            ? 'slowDaily'
+            : 'normal';
+
     randomControl.wordRng = createRngController(`${baseSeed}:word-sequence`);
     randomControl.mixRng = createRngController(`${baseSeed}:letter-mix`);
 }

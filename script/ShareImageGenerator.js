@@ -203,7 +203,8 @@ class ShareImageGenerator {
         y += TITLE_H;
 
         ctx.font = `400 28px ${FONT}`;
-        ctx.fillText('"Gra Dnia"', CONTENT_CENTER_X, y + SUBTITLE_H / 2);
+        const modeLabel = payload.modeLabel || '"Gra Dnia"';
+        ctx.fillText(modeLabel, CONTENT_CENTER_X, y + SUBTITLE_H / 2);
         y += SUBTITLE_H;
 
         ctx.font = `400 20px ${FONT}`;

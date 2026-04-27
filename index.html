@@ -24,7 +24,7 @@
             <span id="timer-value">00:00</span>
             <button id="stop-game">❌</button>
         </div>
-        <button id="game-of-the-day-button" class="hidden">gra dnia</button>
+      <div id="timer-spacer" aria-hidden="true"></div>
         <div id="title">
           <span id="title-main">Pomocnik Literakowy</span>
           <div class="title-kids hidden">
@@ -93,12 +93,11 @@
         </div>
       </div>
       <div class="controls" id="game-top-controls">
-        <div id="letter-count-buttons">
-            <span id="letter-count-header">Liczba liter:</span>
-            <button class="letter-count-button" id="button-6">6</button>
-            <button class="letter-count-button chosen" id="button-7">7</button>
-            <button class="letter-count-button" id="button-8">8</button>
-            <button class="letter-count-button" id="button-9">9</button>
+        <div id="mode-select-buttons">
+          <button class="mode-select-btn chosen" data-mode="classic7">7</button>
+          <button class="mode-select-btn" data-mode="redTraining">🔴</button>
+          <button class="mode-select-btn" data-mode="fastDaily">⚡</button>
+          <button class="mode-select-btn" data-mode="slowDaily">🐢</button>
         </div>
         <button id="next-button">
             <div id="next">
@@ -108,7 +107,7 @@
         </button>
       </div>
       <div id="letter-display"></div>
-      <p id="possible-count">Możliwych słów: <span id="solution-count">0</span></p>
+      <p id="possible-count">Możliwych słów: <span id="solution-count">0</span> <span id="twelve-remaining" class="hidden"></span></p>
       <div class="controls">
           <button id="check-button">Sprawdź</button>
           <button id="shuffle-button">
@@ -184,6 +183,7 @@
     <script src="script/AnagramChecker.js" defer></script>
     <script src="script/ConsoleStats.js" defer></script>
     <script src="script/TileDragController.js" defer></script>
+    <script src="script/GameModeController.js" defer></script>
     <script src="script/GameOfDayController.js" defer></script>
     <script src="script/main.js" defer></script>
 </body>
