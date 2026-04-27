@@ -83,7 +83,10 @@ class ShareImageGenerator {
             ]);
         } catch (_) { /* fall back to system-ui */ }
 
-        const penguinImg = await ShareImageGenerator.#loadShareImage('pingwinDab.png');
+        const penguinImageName = String(payload.score).includes('67')
+            ? 'pingwin67.png'
+            : 'pingwinDab.png';
+        const penguinImg = await ShareImageGenerator.#loadShareImage(penguinImageName);
 
         const WORD_SIZE = 28;
         const LINE_H = 46;          // stride per text line
@@ -227,13 +230,19 @@ class ShareImageGenerator {
 
         // penguin image
         const IMG_CELL_W = 285;
-        const IMG_W = 266;
-        const IMG_H = 250;
+        const IMG_MAX_W = 266;
+        const IMG_MAX_H = 250;
         if (penguinImg) {
+            const srcW = penguinImg.naturalWidth || penguinImg.width;
+            const srcH = penguinImg.naturalHeight || penguinImg.height;
+            const scale = Math.min(IMG_MAX_W / srcW, IMG_MAX_H / srcH);
+            const drawW = Math.round(srcW * scale);
+            const drawH = Math.round(srcH * scale);
+
             ctx.drawImage(penguinImg,
-                cardX + (IMG_CELL_W - IMG_W) / 2,
-                y + (CARD_H - IMG_H) / 2,
-                IMG_W, IMG_H
+                cardX + (IMG_CELL_W - drawW) / 2,
+                y + (CARD_H - drawH) / 2,
+                drawW, drawH
             );
         }
 
