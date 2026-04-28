@@ -67,8 +67,14 @@ class WordOfTheDay {
     }
 
     createDailyWordRng() {
-        if (typeof createRngController === 'function' && typeof randomControl !== 'undefined' && randomControl?.dailySeedBase) {
-            return createRngController(`${randomControl.dailySeedBase}:word-of-the-day`);
+        if (typeof createRngController === 'function') {
+            // Keep word-of-the-day stable for the same calendar date.
+            const seedBase = typeof getTodaySeedString === 'function'
+                ? getTodaySeedString()
+                : (typeof randomControl !== 'undefined' && randomControl?.fastDailySeedBase)
+                    ? randomControl.fastDailySeedBase
+                    : new Date().toISOString().slice(0, 10);
+            return createRngController(`${seedBase}:word-of-the-day`);
         }
 
         if (typeof randomControl !== 'undefined' && randomControl?.wordRng?.int) {
