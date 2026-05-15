@@ -36,6 +36,8 @@ class GuessListView {
             a.classList.add('guess-correct');
         } else if (kind === 'missed') {
             a.classList.add('guess-missed');
+        } else if (kind === 'wrong') {
+            a.classList.add('guess-wrong');
         }
 
         div.appendChild(a);

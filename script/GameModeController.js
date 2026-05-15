@@ -1,222 +1,4 @@
 // ============================================================
-// Game mode contracts & implementations
-// ============================================================
-
-// Red-letter set: letters worth 5 pts in Literaki
-const RED_LETTERS = new Set(['ą', 'ć', 'ę', 'f', 'ń', 'ó', 'ś', 'ź', 'ż']);
-
-// ---- Classic 7 mode ----------------------------------------
-class Classic7Mode {
-    get id() { return 'classic7'; }
-    get label() { return '7'; }
-    get emoji() { return '7'; }
-    get hasTimer() { return false; }
-    get timerCountsUp() { return false; }
-    get wordLength() { return 7; }
-
-    createState() {
-        return {
-            totalFound: 0,
-            totalSolutions: 0
-        };
-    }
-
-    getRoundConfig() {
-        return { length: 7, wordFilter: null };
-    }
-
-    onGuessCorrect(modeState) {
-        modeState.totalFound += 1;
-    }
-
-    onGuessWrong(_modeState) {
-        // no penalty
-    }
-
-    onSkip(modeState, missedCount) {
-        // no penalty in classic
-    }
-
-    getPointsLabel(modeState) {
-        return `${modeState.totalFound}/${modeState.totalSolutions}`;
-    }
-
-    isFinished(_modeState) {
-        return false; // plays indefinitely
-    }
-}
-
-// ---- Fast Daily mode (wraps GameOfDayController logic) -------
-class FastDailyMode {
-    get id() { return 'fastDaily'; }
-    get label() { return '⚡' ; }
-    get emoji() { return '⚡'; }
-    get hasTimer() { return true; }
-    get timerCountsUp() { return false; }
-    get wordLength() { return 7; }
-
-    createState() {
-        return {
-            score: 0,
-            secondsLeft: GAME_OF_DAY_DURATION_SECONDS,
-            allSolutions: [],
-            currentRoundStartIdx: 0,
-            roundCount: 0,
-            dateLabel: ''
-        };
-    }
-
-    getRoundConfig() {
-        return { length: 7, wordFilter: null };
-    }
-
-    onGuessCorrect(modeState, word) {
-        const roundEntry = modeState.allSolutions.find(
-            (entry, i) => i >= modeState.currentRoundStartIdx
-                && entry.word.toLowerCase() === word.toLowerCase()
-                && !entry.found
-        );
-        if (roundEntry) roundEntry.found = true;
-        modeState.score += 50;
-    }
-
-    onGuessWrong(_modeState) {
-        // no per-guess penalty in fastDaily
-    }
-
-    onSkip(modeState, missedCount) {
-        modeState.score -= 5 * missedCount;
-    }
-
-    getPointsLabel(modeState) {
-        return String(modeState.score);
-    }
-
-    isFinished(modeState) {
-        return modeState.secondsLeft <= 0;
-    }
-
-    onRoundStart(modeState, solutions) {
-        modeState.currentRoundStartIdx = modeState.allSolutions.length;
-        const roundIdx = modeState.roundCount;
-        modeState.roundCount += 1;
-        modeState.totalSolutions = (modeState.totalSolutions || 0) + solutions.length;
-        solutions.forEach(w => modeState.allSolutions.push({ word: w, found: false, roundIdx }));
-    }
-}
-
-// ---- Slow Daily mode ---------------------------------------
-class SlowDailyMode {
-    get id() { return 'slowDaily'; }
-    get label() { return '🐢'; }
-    get emoji() { return '🐢'; }
-    get hasTimer() { return true; }
-    get timerCountsUp() { return true; }
-    get wordLength() { return 7; }
-    get totalRounds() { return 5; }
-
-    createState() {
-        return {
-            score: 0,
-            secondsElapsed: 0,
-            totalSolutions: 0,
-            allSolutions: [],
-            currentRoundStartIdx: 0,
-            roundCount: 0
-        };
-    }
-
-    getRoundConfig() {
-        return { length: 7, wordFilter: null };
-    }
-
-    onGuessCorrect(modeState, word) {
-        if (modeState.allSolutions) {
-            const roundEntry = modeState.allSolutions.find(
-                (entry, i) => i >= (modeState.currentRoundStartIdx || 0)
-                    && entry.word.toLowerCase() === word.toLowerCase()
-                    && !entry.found
-            );
-            if (roundEntry) roundEntry.found = true;
-        }
-        modeState.score += 50;
-    }
-
-    onGuessWrong(modeState) {
-        modeState.score -= 1;
-    }
-
-    onSkip(modeState, missedCount) {
-        modeState.score -= 25 * missedCount;
-    }
-
-    getPointsLabel(modeState) {
-        return String(modeState.score);
-    }
-
-    isFinished(modeState) {
-        return modeState.roundCount >= this.totalRounds;
-    }
-
-    onRoundStart(modeState, solutions) {
-        modeState.currentRoundStartIdx = modeState.allSolutions.length;
-        const roundIdx = modeState.roundCount;
-        modeState.roundCount += 1;
-        solutions.forEach(w => modeState.allSolutions.push({ word: w, found: false, roundIdx }));
-    }
-}
-
-// ---- Red Training mode -------------------------------------
-class RedTrainingMode {
-    get id() { return 'redTraining'; }
-    get label() { return '🔴'; }
-    get emoji() { return '🔴'; }
-    get hasTimer() { return false; }
-    get timerCountsUp() { return false; }
-
-    createState() {
-        return {
-            totalFound: 0,
-            totalSolutions: 0
-        };
-    }
-
-    getRoundConfig(rng) {
-        // Random length 3-7
-        const length = 3 + (rng ? rng.int(5) : Math.floor(Math.random() * 5));
-        return {
-            length,
-            wordFilter: key => {
-                for (const ch of key) {
-                    if (RED_LETTERS.has(ch.toLowerCase())) return true;
-                }
-                return false;
-            }
-        };
-    }
-
-    onGuessCorrect(modeState) {
-        modeState.totalFound += 1;
-    }
-
-    onGuessWrong(_modeState) {
-        // no penalty
-    }
-
-    onSkip(_modeState, _missedCount) {
-        // no penalty
-    }
-
-    getPointsLabel(modeState) {
-        return `${modeState.totalFound}/${modeState.totalSolutions}`;
-    }
-
-    isFinished(_modeState) {
-        return false;
-    }
-}
-
-// ============================================================
 // GameModeController
 // ============================================================
 
@@ -321,6 +103,9 @@ class GameModeController {
         this._savedStates[nextMode.id] = nextMode.createState();
         this._resetSharedRoundState();
 
+        // Always clear guess list when switching modes
+        this._clearGuessList();
+
         this.activeMode = nextMode;
         this._active = true;
 
@@ -331,7 +116,6 @@ class GameModeController {
                 refreshNormalRandomSeed();
             }
             configureRandomMode(modeId === 'slowDaily' ? 'slowDaily' : 'normal');
-            this._clearGuessList();
             await this._startRound();
             if (nextMode.hasTimer) {
                 this._startTimer();
@@ -421,7 +205,7 @@ class GameModeController {
         this._updateGameModeUI();
     }
 
-    onGuessWrong() {
+    onGuessWrong(word) {
         const mode = this.activeMode;
         const modeState = this.currentState;
         const before = this._getScoreValue(mode, modeState);
@@ -429,7 +213,7 @@ class GameModeController {
             mode.onGuessWrong(this._gameOfDayController.state);
             this._syncFastDailyStateBack();
         } else {
-            mode.onGuessWrong(modeState);
+            mode.onGuessWrong(modeState, word);
         }
         const after = this._getScoreValue(mode, modeState);
         this._emitScoreDelta(before, after);
@@ -528,6 +312,12 @@ class GameModeController {
         gc.state.roundCount = modeState && typeof modeState.roundCount === 'number'
             ? modeState.roundCount
             : 0;
+        gc.state.wrongGuesses = (modeState && Array.isArray(modeState.wrongGuesses))
+            ? [...modeState.wrongGuesses]
+            : [];
+        gc.state.secondsElapsed = (modeState && typeof modeState.secondsElapsed === 'number')
+            ? modeState.secondsElapsed
+            : null;
 
         const gameOfDayDate = document.getElementById('game-of-day-date');
         if (gameOfDayDate) gameOfDayDate.textContent = `(${gc.state.dateLabel})`;

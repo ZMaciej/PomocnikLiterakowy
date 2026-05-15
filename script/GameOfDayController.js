@@ -29,6 +29,8 @@ class GameOfDayController {
             secondsLeft: GAME_OF_DAY_DURATION_SECONDS,
             timerId: null,
             allSolutions: [],
+            wrongGuesses: [],
+            secondsElapsed: null,
             currentRoundStartIdx: 0,
             roundCount: 0,
             dateLabel: '',
@@ -154,6 +156,8 @@ class GameOfDayController {
             guessedWords,
             missedWords,
             wordGroups,
+            wrongGuesses: this.state.wrongGuesses || [],
+            secondsElapsed: this.state.secondsElapsed ?? null,
             guessedCount: guessedWords.length,
             totalCount: this.state.allSolutions.length
         };
@@ -267,6 +271,16 @@ class GameOfDayController {
 
         if (scoreEl) scoreEl.textContent = String(this.state.score);
 
+        const timeEl = document.getElementById('game-of-day-time');
+        if (timeEl) {
+            if (this.state.secondsElapsed != null) {
+                timeEl.textContent = `Czas: ${formatTimer(this.state.secondsElapsed)}`;
+                timeEl.classList.remove('hidden');
+            } else {
+                timeEl.classList.add('hidden');
+            }
+        }
+
         if (wordListEl) {
             wordListEl.innerHTML = '';
             this.state.allSolutions.forEach(({ word, found }, idx) => {
@@ -279,6 +293,19 @@ class GameOfDayController {
                 a.classList.add(found ? 'guess-correct' : 'guess-missed');
                 wordListEl.appendChild(a);
             });
+            if (this.state.wrongGuesses && this.state.wrongGuesses.length > 0) {
+                wordListEl.appendChild(document.createTextNode(' | '));
+                this.state.wrongGuesses.forEach((word, idx) => {
+                    if (idx > 0) wordListEl.appendChild(document.createTextNode(', '));
+                    const a = document.createElement('a');
+                    a.textContent = word;
+                    a.href = `https://sjp.pl/${encodeURIComponent(word)}`;
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.classList.add('guess-wrong');
+                    wordListEl.appendChild(a);
+                });
+            }
         }
 
         this._setShareStatus('');

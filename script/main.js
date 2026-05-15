@@ -488,7 +488,12 @@ async function handleGuess(guess) {
             }
         }
     } else {
-        gameModeController.onGuessWrong();
+        gameModeController.onGuessWrong(normalized);
+        if (gameModeController.currentMode.id === 'slowDaily') {
+            guessListView.addWord(normalized, 'wrong');
+            const correctSection = document.getElementById('correct-section');
+            if (correctSection) correctSection.classList.remove('hidden');
+        }
         triggerShake('letter-tile');
     }
 }

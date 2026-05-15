@@ -100,8 +100,12 @@ class ShareImageGenerator {
             if (!wordGroups || !wordGroups.length) return null;
             const tokens = [];
             wordGroups.forEach(group => {
-                group.forEach(({ word, found }) => tokens.push({ word, found }));
+                group.forEach(({ word, found }) => tokens.push({ word, found, wrong: false }));
             });
+            // Append wrong guesses after all round solutions.
+            if (payload.wrongGuesses && payload.wrongGuesses.length > 0) {
+                payload.wrongGuesses.forEach(word => tokens.push({ word, found: false, wrong: true }));
+            }
             if (!tokens.length) return null;
 
             measureCtx.font = `600 ${WORD_SIZE}px ${FONT}`;
@@ -114,6 +118,12 @@ class ShareImageGenerator {
 
             for (let i = 0; i < tokens.length; i++) {
                 const tok = tokens[i];
+                // Wrong guesses use italic font — measure with matching font.
+                if (tok.wrong) {
+                    measureCtx.font = `italic 600 ${WORD_SIZE}px ${FONT}`;
+                } else {
+                    measureCtx.font = `600 ${WORD_SIZE}px ${FONT}`;
+                }
                 const wordW = measureCtx.measureText(tok.word).width;
                 const advance = isFirstOnLine ? 0 : SEP_W;
 
@@ -128,7 +138,7 @@ class ShareImageGenerator {
                 const sepX = drawSep ? curX : null;
                 const wordX = curX + (isFirstOnLine ? 0 : advance);
 
-                placed.push({ word: tok.word, found: tok.found,
+                placed.push({ word: tok.word, found: tok.found, wrong: tok.wrong,
                     lineIdx, wordX, wordW, drawSep, sepX });
 
                 curX = wordX + wordW;
@@ -254,7 +264,9 @@ class ShareImageGenerator {
         const SCORE_H = 96;
         const SCORE_MB = 14;
         const TRAFIONE_H = 32;
-        const totalInfoH = LABEL_H + LABEL_MB + SCORE_H + SCORE_MB + TRAFIONE_H;
+        const TIME_H = payload.secondsElapsed != null ? 28 : 0;
+        const TIME_MT = payload.secondsElapsed != null ? 8 : 0;
+        const totalInfoH = LABEL_H + LABEL_MB + SCORE_H + SCORE_MB + TRAFIONE_H + TIME_MT + TIME_H;
 
         let iy = y + (CARD_H - totalInfoH) / 2;
         ctx.textAlign = 'left';
@@ -272,6 +284,12 @@ class ShareImageGenerator {
         ctx.font = `500 32px ${FONT}`;
         ShareImageGenerator.#fillTextTop(ctx, `Trafione: ${payload.guessedCount}/${payload.totalCount} słów`, INFO_X, iy);
 
+        if (payload.secondsElapsed != null) {
+            iy += TRAFIONE_H + TIME_MT;
+            ctx.font = `400 28px ${FONT}`;
+            ShareImageGenerator.#fillTextTop(ctx, `Czas: ${formatTimer(payload.secondsElapsed)}`, INFO_X, iy);
+        }
+
         y += CARD_H + CARD_MB;
 
         // word list: single comma-separated flow, green = guessed, red = missed
@@ -280,15 +298,21 @@ class ShareImageGenerator {
 
             ctx.textAlign = 'left';
             ctx.textBaseline = 'alphabetic';
-            ctx.font = `600 ${WORD_SIZE}px ${FONT}`;
             const wordAscent = ctx.measureText('A').actualBoundingBoxAscent;
             for (const tok of wordLayout) {
                 const lineBaseY = wy + tok.lineIdx * LINE_H + wordAscent;
                 if (tok.drawSep) {
+                    ctx.font = `600 ${WORD_SIZE}px ${FONT}`;
                     ctx.fillStyle = '#666666';
                     ctx.fillText(SEP, tok.sepX, lineBaseY);
                 }
-                ctx.fillStyle = tok.found ? '#1B8543' : '#9C2B38';
+                if (tok.wrong) {
+                    ctx.font = `italic 600 ${WORD_SIZE}px ${FONT}`;
+                    ctx.fillStyle = '#888888';
+                } else {
+                    ctx.font = `600 ${WORD_SIZE}px ${FONT}`;
+                    ctx.fillStyle = tok.found ? '#1B8543' : '#9C2B38';
+                }
                 ctx.fillText(tok.word, tok.wordX, lineBaseY);
             }
         }
