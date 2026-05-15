@@ -25,10 +25,10 @@ class RedTrainingMode {
         return {
             length,
             wordFilter: key => {
-                for (const ch of key) {
-                    if (RED_LETTERS.has(ch.toLowerCase())) return true;
-                }
-                return false;
+                if (!key || key.length === 0) return false;
+                const first = key[0].toLowerCase();
+                const last = key[key.length - 1].toLowerCase();
+                return RED_LETTERS.has(first) || RED_LETTERS.has(last);
             }
         };
     }

@@ -383,7 +383,7 @@ async function newGame(sjp, count) {
         if (!candidateList || candidateList.length === 0) continue;
         const candidateKey = candidateList[0];
         if (!hasOnlyAvailableTileLetters(candidateKey)) continue;
-        if (wordFilter && !wordFilter(candidateKey)) continue;
+        if (wordFilter && !candidateList.every(word => wordFilter(word))) continue;
         key = candidateKey;
         solutionList = candidateList;
         break;
@@ -396,7 +396,7 @@ async function newGame(sjp, count) {
             if (!candidateList || candidateList.length === 0) continue;
             const candidateKey = candidateList[0];
             if (!hasOnlyAvailableTileLetters(candidateKey)) continue;
-            if (wordFilter && !wordFilter(candidateKey)) continue;
+            if (wordFilter && !candidateList.every(word => wordFilter(word))) continue;
             key = candidateKey;
             solutionList = candidateList;
             break;
