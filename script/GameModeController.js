@@ -132,6 +132,8 @@ class GameModeController {
         const ds = this._savedStates['fastDaily'];
         gc.state.active = true;
         gc.state.modeEmoji = '⚡';
+        gc.state.wrongGuesses = [];
+        gc.state.secondsElapsed = null;
         gc.state.score = ds.score;
         gc.state.secondsLeft = ds.secondsLeft;
         gc.state.allSolutions = ds.allSolutions;

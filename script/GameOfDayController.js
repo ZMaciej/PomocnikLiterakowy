@@ -80,6 +80,8 @@ class GameOfDayController {
         this.state.score = 0;
         this.state.secondsLeft = GAME_OF_DAY_DURATION_SECONDS;
         this.state.allSolutions = [];
+        this.state.wrongGuesses = [];
+        this.state.secondsElapsed = null;
         this.state.currentRoundStartIdx = 0;
         this.state.roundCount = 0;
 
