@@ -6,7 +6,8 @@
     background-color:#f0f0f0;
     padding: 0.3rem;
     border-radius: 4px;
-    max-width: 17rem;
+    width: 17rem;
+    box-sizing: border-box;
 }
 
 .word-of-the-day-image-wrapper {
